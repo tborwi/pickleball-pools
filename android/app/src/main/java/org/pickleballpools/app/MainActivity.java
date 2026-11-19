@@ -240,7 +240,7 @@ public class MainActivity extends Activity {
                 t.teams.remove(existing); save(); refresh(); }));
         else if (existing != null && existing.withdrawn)
             b.setNeutralButton("Bring back", (d, w) -> confirm("Bring back " + existing.label() + "?",
-                    "Its results count again and forfeits are undone. If its pool was redone without it, redo the pools again to add it.",
+                    "Its results count again. If its pool was redone without it, redo the pools again to add it.",
                     () -> { t.reinstate(existing); save(); refresh(); }));
         else if (existing != null)
             b.setNeutralButton("Withdraw", (d, w) -> withdraw(existing));
@@ -261,7 +261,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** A team drops out. If it already played in its current round, the director picks how its results count. */
+    /** A team drops out. USA Pickleball 15.B.4.a: its results in its current round stop counting, and it can't advance. */
     void withdraw(Team x) {
         List<Pool> round = t.currentRound(x);
         String name = round == t.round2 ? "Round 2" : "Round 1";
@@ -273,17 +273,10 @@ public class MainActivity extends Activity {
                         + ". Redo the pools so they stay even?", () -> { if (round == t.round1) t.startRound1(); else t.startRound2(); save(); refresh(); });
         };
         int played = t.played(x);
-        if (played == 0) {
-            confirm("Withdraw " + x.label() + "?", "It hasn't played yet, so its matches simply won't count. You can bring it back later.",
-                    () -> { t.withdraw(x, true); after.run(); });
-            return;
-        }
-        String[] choices = {
-                "Remove all its results\n(as if it never played in this pool)",
-                "Keep the " + played + " match" + (played == 1 ? "" : "es") + " already played\n(it forfeits the rest: opponents win 2-0, no points)"};
-        new AlertDialog.Builder(this).setTitle(x.label() + " has played " + played + " match" + (played == 1 ? "" : "es") + " in " + name + ". How should its results count?")
-                .setItems(choices, (d, w) -> { t.withdraw(x, w == 0); after.run(); })
-                .setNegativeButton("Cancel", null).show();
+        String msg = played == 0 ? "It hasn't played yet in " + name + ", so its matches simply won't count."
+                : "Its " + played + " match" + (played == 1 ? "" : "es") + " already played in " + name
+                  + " will no longer count for anyone, and it can't advance (USA Pickleball rule 15.B.4.a).";
+        confirm("Withdraw " + x.label() + "?", msg + "\n\nYou can bring it back later.", () -> { t.withdraw(x); after.run(); });
     }
 
     void pasteTeams() {
@@ -347,7 +340,6 @@ public class MainActivity extends Activity {
             String s = ids.get(m.a).label() + "\n   vs  " + ids.get(m.b).label() + "\n";
             if (p.voided.contains(m.a) || p.voided.contains(m.b))
                 s += "   doesn't count: " + ids.get(p.voided.contains(m.a) ? m.a : m.b).label() + " dropped out";
-            else if (m.forfeit()) s += "   forfeit → " + ids.get(m.winner()).label() + " wins";
             else s += m.games.isEmpty() ? "   not played yet" : "   " + m.scoreText()
                     + (m.done() ? "   → " + ids.get(m.winner()).label() + " won" : "");
             TextView row = text(s, 18, false, Color.BLACK);
@@ -384,7 +376,7 @@ public class MainActivity extends Activity {
         f.addView(free(text("Games to " + t.pointsToWin + ", win by " + t.winBy + ". Leave Game 3 empty if not needed.", 14, false, GREY)));
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Enter scores").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null)
-                .setNeutralButton("Clear", (x, w) -> { m.games.clear(); m.forfeitWinner = null; save(); refresh(); }).show();
+                .setNeutralButton("Clear", (x, w) -> { m.games.clear(); save(); refresh(); }).show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             List<int[]> games = new ArrayList<>();
             for (int g = 0; g < 3; g++) {
@@ -397,7 +389,6 @@ public class MainActivity extends Activity {
             if (err != null) { toast(err); return; }
             m.games.clear();
             m.games.addAll(games);
-            m.forfeitWinner = null;
             save();
             d.dismiss();
             refresh();
@@ -413,7 +404,7 @@ public class MainActivity extends Activity {
         EditText adv = field(f, "Teams per pool to the Championship bracket", String.valueOf(t.advancePerPool), true);
         EditText fin = field(f, "Teams per Championship pool to the Finals", String.valueOf(t.finalistsPerPool), true);
         EditText to = field(f, "Games are played to", String.valueOf(t.pointsToWin), true);
-        EditText by = field(f, "Win by", String.valueOf(t.winBy), true);
+        EditText by = field(f, "Win by (USA Pickleball: 2)", String.valueOf(t.winBy), true);
         if (!t.round1.isEmpty()) pools.setEnabled(false);
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Settings").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null).show();

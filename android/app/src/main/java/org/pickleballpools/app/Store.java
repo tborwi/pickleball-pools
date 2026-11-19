@@ -75,7 +75,6 @@ final class Store {
                 JSONArray g = new JSONArray();
                 for (int[] s : m.games) g.put(new JSONArray().put(s[0]).put(s[1]));
                 JSONObject mj = new JSONObject().put("a", m.a).put("b", m.b).put("round", m.round).put("games", g);
-                if (m.forfeit()) mj.put("forfeitWinner", m.forfeitWinner);
                 ms.put(mj);
             }
             a.put(new JSONObject().put("name", p.name).put("bracket", p.bracket)
@@ -124,6 +123,8 @@ final class Store {
         }
         readPools(o.optJSONArray("round1"), t.round1);
         readPools(o.optJSONArray("round2"), t.round2);
+        // 1.3 could keep a withdrawn team's results (with forfeits); USA Pickleball 15.B.4.a removes them.
+        for (Team x : t.teams) if (x.withdrawn) t.withdraw(x);
         return t;
     }
 
@@ -138,7 +139,6 @@ final class Store {
                 JSONObject mj = ms.getJSONObject(k);
                 Match m = new Match(mj.getString("a"), mj.getString("b"), mj.optInt("round", 1));
                 JSONArray g = mj.getJSONArray("games");
-                if (mj.has("forfeitWinner")) m.forfeitWinner = mj.getString("forfeitWinner");
                 for (int n = 0; n < g.length(); n++) m.games.add(new int[]{g.getJSONArray(n).getInt(0), g.getJSONArray(n).getInt(1)});
                 p.matches.add(m);
             }

@@ -10,21 +10,25 @@ import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
 /**
- * Pool standings. Teams are ranked by matches won. Teams tied on wins are separated by, in order:
+ * Pool standings, following USA Pickleball Official Rulebook 2026, Rule 15.B.4 (see RULES.md).
+ * Teams are ranked by matches won. Teams tied on wins are separated by, in order:
  * <ol>
- *   <li>Head to head (match wins among the tied teams only)</li>
- *   <li>Overall point differential (all round robin games)</li>
- *   <li>Head-to-head point differential (games among the tied teams only)</li>
- *   <li>Point differential vs the next highest team (the team just above the tied group)</li>
- *   <li>Total points scored (all round robin games)</li>
+ *   <li>15.B.4.b Head to head: match record among the tied teams</li>
+ *   <li>15.B.4.c Point differential of all games played</li>
+ *   <li>15.B.4.d Point differential of head-to-head games (among the tied teams)</li>
+ *   <li>15.B.4.e Point differential vs the team(s) with the next-highest number of matches won</li>
+ *   <li>15.B.4.f Most points scored across all matches</li>
  * </ol>
- * As soon as a step separates any of the tied teams, each group that is still tied starts over at step 1
- * (so a 3-way tie that becomes a 2-way tie is decided by those two teams' head-to-head).
+ * "The method that succeeds in breaking the tie will be used to rank all tied teams" (15.B.4): when a step
+ * separates some of the tied teams, teams still level on that step CONTINUE with the next step among themselves;
+ * they never go back to step 1. Example: 3 teams tied, head to head circular, point differential puts one team
+ * first; the other two are then ranked by head-to-head point differential.
+ * 15.B.4.a: a team that withdrew has no results counted in the pool it withdrew from (Pool.voided); it is listed
+ * last and can't advance.
  * If every step fails, teams are listed by seed (combined DUPR); once the pool is finished they are flagged for the director.
  */
 public final class Standings {
-    public static final String WITHDREW = "Withdrew";
-    public static final String WITHDREW_VOID = "Withdrew: results removed";
+    public static final String WITHDREW = "Withdrew: results removed (USA Pickleball 15.B.4.a)";
     public static final String UNRESOLVED = "Still tied after all tiebreakers: director decides (listed by DUPR)";
 
     public static final class Row {
@@ -39,6 +43,7 @@ public final class Standings {
     }
 
     private final Pool pool;
+    private final List<Row> active = new ArrayList<>(); // teams still in, for 15.B.4.e
     private final List<Row> out = new ArrayList<>();
 
     private Standings(Pool pool) { this.pool = pool; }
@@ -67,15 +72,16 @@ public final class Standings {
         List<Row> all = new ArrayList<>(), gone = new ArrayList<>();
         for (Row r : rows.values()) {
             r.withdrawn = r.team.withdrawn;
-            if (r.withdrawn) { r.tiebreak = pool.voided.contains(r.team.id) ? WITHDREW_VOID : WITHDREW; gone.add(r); }
+            if (r.withdrawn) { r.tiebreak = WITHDREW; gone.add(r); }
             else all.add(r);
         }
+        s.active.addAll(all);
         all.sort(Comparator.comparingInt((Row r) -> -r.wins));
         int i = 0;
         while (i < all.size()) {
             int j = i;
             while (j < all.size() && all.get(j).wins == all.get(i).wins) j++;
-            s.resolve(new ArrayList<>(all.subList(i, j)));
+            s.resolve(new ArrayList<>(all.subList(i, j)), 0);
             i = j;
         }
         s.out.addAll(gone);
@@ -83,29 +89,32 @@ public final class Standings {
         return s.out;
     }
 
-    private void resolve(List<Row> group) {
+    /** Orders a group of teams with the same wins, trying the tiebreak steps from step index `from`. */
+    private void resolve(List<Row> group, int from) {
         if (group.size() == 1) { out.add(group.get(0)); return; }
         Set<String> ids = new HashSet<>();
         for (Row r : group) ids.add(r.team.id);
-        Row above = out.isEmpty() ? null : out.get(out.size() - 1);
+        // 15.B.4.e: the team(s) with the next-highest number of matches won (none if tied for first)
+        int wins = group.get(0).wins, next = Integer.MAX_VALUE;
+        for (Row r : active) if (r.wins > wins) next = Math.min(next, r.wins);
+        Set<String> nextUp = new HashSet<>();
+        List<String> nextNames = new ArrayList<>();
+        for (Row r : active) if (r.wins == next) { nextUp.add(r.team.id); nextNames.add(r.team.label()); }
 
         List<String> names = new ArrayList<>();
         List<ToDoubleFunction<Row>> steps = new ArrayList<>();
         names.add("head to head");
         steps.add(r -> vs(r.team.id, ids, true));
-        names.add("overall point differential");
+        names.add("point differential");
         steps.add(Row::diff);
         names.add("head-to-head point differential");
         steps.add(r -> vs(r.team.id, ids, false));
-        if (above != null) {
-            Set<String> one = Set.of(above.team.id);
-            names.add("point differential vs " + above.team.label());
-            steps.add(r -> vs(r.team.id, one, false));
-        }
+        names.add("point differential vs " + (nextNames.isEmpty() ? "the next-highest team" : String.join(", ", nextNames)));
+        steps.add(r -> vs(r.team.id, nextUp, false));
         names.add("total points scored");
         steps.add(r -> r.pointsFor);
 
-        for (int s = 0; s < steps.size(); s++) {
+        for (int s = from; s < steps.size(); s++) {
             ToDoubleFunction<Row> f = steps.get(s);
             double first = f.applyAsDouble(group.get(0));
             boolean separates = false;
@@ -119,7 +128,7 @@ public final class Standings {
                 while (j < group.size() && f.applyAsDouble(group.get(j)) == v) j++;
                 List<Row> sub = new ArrayList<>(group.subList(i, j));
                 if (sub.size() == 1 && sub.get(0).tiebreak.isEmpty()) sub.get(0).tiebreak = "Tiebreak: " + names.get(s);
-                resolve(sub);
+                resolve(sub, s + 1); // 15.B.4: still-tied teams continue with the next tie-breaker
                 i = j;
             }
             return;

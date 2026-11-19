@@ -21,7 +21,7 @@ public final class Tournament {
     public int advancePerPool = 2;   // round 1 -> Championship bracket
     public int finalistsPerPool = 1; // round 2 Championship pool -> Finals
     public int pointsToWin = 11;
-    public int winBy = 1;
+    public int winBy = 2; // USA Pickleball 15.C: all scoring options are win by two (win by 1 only for team play)
 
     public String paymentLink = "";  // the page players pay on (Stripe Payment Link, PayPal, Zeffy…), shared from the app
     public int[] importColumns;      // last column match used for a payment export (Registration.FIELDS order)
@@ -106,11 +106,16 @@ public final class Tournament {
                 if (r.withdrawn) continue; // withdrawn teams are listed last, so the next team moves up
                 (r.place <= advancePerPool ? champ : consol).add(r);
             }
+        // Across pools: pool finish, then share of matches won. Point differential and points scored are only
+        // compared when every pool has the same number of teams (USA Pickleball 15.B.4.c and 15.B.4.f).
+        java.util.Set<Integer> sizes = new java.util.HashSet<>();
+        for (Pool p : round1) sizes.add((int) p.teamIds.stream().filter(id -> !ids.get(id).withdrawn).count());
+        boolean equalPools = sizes.size() == 1;
         Comparator<Standings.Row> byRecord = Comparator
                 .comparingInt((Standings.Row r) -> r.place)
-                .thenComparingInt(r -> -r.wins)
-                .thenComparingInt(r -> -r.diff())
-                .thenComparingInt(r -> -r.pointsFor)
+                .thenComparingDouble(r -> -(double) r.wins / Math.max(1, r.wins + r.losses))
+                .thenComparingInt(r -> equalPools ? -r.diff() : 0)
+                .thenComparingInt(r -> equalPools ? -r.pointsFor : 0)
                 .thenComparingDouble(r -> -r.team.combined());
         champ.sort(byRecord);
         consol.sort(byRecord);
@@ -145,27 +150,20 @@ public final class Tournament {
     }
 
     /**
-     * A team drops out. In its current round, either its results are removed for everyone (voidResults), or the
-     * matches already played stand and its unplayed matches are forfeited to the opponents (2-0, no points, so
-     * nobody's point differential changes). Earlier rounds are never changed. Before pools exist it just leaves.
+     * A team drops out (withdraws, retires or is forfeited). USA Pickleball 15.B.4.a: its match results don't count
+     * toward the standings of the pool it was playing in, and it can't advance. Earlier rounds are never changed.
+     * Before pools exist it just leaves.
      */
-    public void withdraw(Team x, boolean voidResults) {
+    public void withdraw(Team x) {
         x.withdrawn = true;
-        for (Pool p : currentRound(x)) {
-            if (!p.teamIds.contains(x.id)) continue;
-            if (voidResults) { if (!p.voided.contains(x.id)) p.voided.add(x.id); continue; }
-            for (Match m : p.matches) if (m.involves(x.id) && m.games.isEmpty()) m.forfeitWinner = m.opponent(x.id);
-        }
+        for (Pool p : currentRound(x)) if (p.teamIds.contains(x.id) && !p.voided.contains(x.id)) p.voided.add(x.id);
     }
 
-    /** Undoes withdraw: results count again and the forfeits it created are cleared. */
+    /** Undoes withdraw: its results count again. */
     public void reinstate(Team x) {
         x.withdrawn = false;
-        for (List<Pool> round : List.of(round1, round2))
-            for (Pool p : round) {
-                p.voided.remove(x.id);
-                for (Match m : p.matches) if (m.involves(x.id) && m.games.isEmpty()) m.forfeitWinner = null;
-            }
+        for (Pool p : round1) p.voided.remove(x.id);
+        for (Pool p : round2) p.voided.remove(x.id);
     }
 
     public static int scored(List<Pool> pools) {

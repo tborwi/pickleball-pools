@@ -30,7 +30,7 @@ public final class Pool {
         }
     }
 
-    /** Matches with scores entered (forfeits don't count). */
+    /** Matches with scores entered. */
     public int scored() {
         int n = 0;
         for (Match m : matches) if (!m.games.isEmpty()) n++;

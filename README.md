@@ -16,7 +16,7 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    Teams are seeded by **combined DUPR** (5.56 + 5.51 = 11.07).
 2. **Round 1 pools.** Teams are snaked into pools by seed: A, B, C, D, then D, C, B, A, and so on.
    So Pool A gets seeds 1, 8, 9, 16 and Pool D gets 4, 5, 12, 13. Each pool plays a round robin.
-3. **Scores.** Each match is best 2 out of 3 games, to 11, win by 1. The app refuses impossible scores (like 12-10).
+3. **Scores.** Each match is best 2 out of 3 games to 11, win by 2 (USA Pickleball). The app refuses impossible scores.
 4. **Round 2.** The top 2 of each pool go to the **Championship** bracket (Pools A and B), the rest to the
    **Consolation** bracket (Pools C and D). Teams are re-seeded by Round 1 result (pool finish, then wins,
    point differential, points scored) and snaked again. Another round robin.
@@ -34,12 +34,8 @@ Open **Teams** and tap the team.
   **Redo Round 1 pools** on the home screen so the new combined DUPR is seeded.
 - **A team drops out before its round starts:** tap **Withdraw**. The app offers to **redo the pools** right away
   (same seeding and snake order, without that team). Pools can end up one team smaller (a pool of 3 plays 3 matches).
-- **A team drops out during pool play:** tap **Withdraw** and choose either
-  - **Remove all its results** (as if it never played in that pool), or
-  - **Keep the matches already played** and forfeit the rest. Opponents get a 2-0 win with no points, so nobody's
-    point differential changes.
-
-  Withdrawn teams are listed last in the pool and never advance.
+- **A team drops out during pool play:** tap **Withdraw**. Following USA Pickleball rule 15.B.4.a, its match results
+  in that pool no longer count for anyone, and it can't advance.
 - **A Championship team drops out before Round 2:** withdraw it and use **Redo Round 2 pools**. The next-best team
   from its Round 1 pool moves up into the Championship bracket.
 - **Changed your mind?** Tap the team under "Dropped out" and **Bring back**.
@@ -48,20 +44,25 @@ Redoing a round's pools erases the scores already entered in that round; the app
 Earlier rounds are never changed. When a registered player is removed (for example after a refund) and their team is
 already in the tournament, the app offers to withdraw the team.
 
-## Tiebreakers
+## Rules: USA Pickleball
 
-Teams are ranked by matches won. Teams with the same number of wins are separated by, in order:
+The app follows the **USA Pickleball Official Rulebook** (2026). [RULES.md](RULES.md) lists each rule it applies,
+with rule numbers, plus the few choices the rulebook leaves to the tournament.
 
-1. Head to head (match wins among the tied teams only)
-2. Overall point differential (all round robin games)
-3. Head-to-head point differential (games among the tied teams only)
-4. Point differential vs the next highest team (the team just above the tied group in the standings)
-5. Total points scored
+**Tiebreakers** (rule 15.B.4). Teams are ranked by matches won. Teams with the same number of wins are separated by,
+in order:
 
-As soon as a step separates some of the tied teams, any teams still tied **start over at step 1**. For example,
-a 3-way tie that becomes a 2-way tie is then settled by those two teams' head-to-head match. When a pool is
-finished, the standings show which tiebreaker placed each team. If all five fail, the teams are shown in red,
-listed by DUPR, for the tournament director to decide.
+1. Head to head (match record among the tied teams)
+2. Point differential of all games played
+3. Head-to-head point differential (games among the tied teams)
+4. Point differential against the team(s) with the next-highest number of wins
+5. Most points scored
+
+When a tiebreaker separates some of the tied teams, the ones still tied **continue with the next tiebreaker**;
+they don't start over. When a pool is finished, the standings show which tiebreaker placed each team. If all five
+fail, the teams are shown in red, listed by DUPR, for the tournament director to decide.
+
+**Scoring:** best 2 of 3 games to 11, **win by 2** (rule 15.C). Win by 1 can be set in Settings, but it isn't standard.
 
 ## Make it yours (logo and name)
 
@@ -92,7 +93,7 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `core/Tournament.java` | Seeding, snake order, Round 1 → Round 2, finalists |
 | `core/Standings.java` | Standings and the tiebreak procedure |
 | `core/Pool.java`, `Match.java`, `Team.java` | Round-robin schedule, match result, team |
-| `core/Rules.java` | Score validation (to 11, win by 1, best of 3) |
+| `core/Rules.java` | Score validation (to 11, win by 2, best of 3) |
 | `core/Registration.java`, `Player.java` | Reading payment exports (CSV), pairing players by DUPR ID |
 | `app/MainActivity.java` | All screens, built in code with big text and buttons |
 | `app/RegistrationsScreen.java` | Registrations screen: import, column matching, ratings, payment link |

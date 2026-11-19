@@ -41,6 +41,37 @@ public final class CoreTest {
         return sb.toString().trim();
     }
 
+    /** Sets a match's games, each written from team x's side: {x points, y points}. */
+    static void games(Pool p, String x, String y, int[]... gs) {
+        for (Match m : p.matches) {
+            if (!(m.involves(x) && m.involves(y))) continue;
+            m.games.clear();
+            for (int[] g : gs) m.games.add(m.a.equals(x) ? g : new int[]{g[1], g[0]});
+            return;
+        }
+    }
+
+    static void tiebreakContinues() {
+        Tournament t = new Tournament();
+        for (String n : new String[]{"X", "Y", "Z", "W"}) { Team x = t.addTeam(); x.name = n; x.dupr1 = x.dupr2 = 5; }
+        Pool p = new Pool("A", "");
+        for (Team x : t.teams) p.teamIds.add(x.id);
+        p.schedule();
+        String X = "t1", Y = "t2", Z = "t3", W = "t4";
+        games(p, X, Y, new int[]{0, 11}, new int[]{11, 9}, new int[]{11, 9}); // X wins the match but is -7 on points
+        games(p, Y, Z, new int[]{11, 9}, new int[]{11, 9});
+        games(p, Z, X, new int[]{11, 9}, new int[]{11, 9});
+        games(p, X, W, new int[]{11, 5}, new int[]{11, 4});                     // X +13
+        games(p, Y, W, new int[]{0, 11}, new int[]{11, 10}, new int[]{11, 10}); // Y wins but -9
+        games(p, Z, W, new int[]{11, 0}, new int[]{11, 0});                     // Z +22
+        // X, Y, Z all 2-1, head to head circular. Overall diff: X -7-4+13 = 2, Y 7+4-9 = 2, Z -4+4+22 = 22
+        Map<String, Team> ids = t.byId();
+        List<Standings.Row> now = Standings.of(p, ids);
+        // 15.B.4: X and Y continue to head-to-head point differential; they do NOT go back to head to head (X won)
+        check(order(now).equals("Z Y X W"), "15.B.4: X/Y continue to head-to-head point diff -> Y ahead (got " + order(now) + ")");
+        check(now.get(1).tiebreak.equals("Tiebreak: head-to-head point differential"), "note: " + now.get(1).tiebreak);
+    }
+
     static Pool poolOf(Tournament t, List<Pool> round, String id) {
         for (Pool p : round) if (p.teamIds.contains(id)) return p;
         return null;
@@ -51,7 +82,7 @@ public final class CoreTest {
         Tournament t = sixteenTeams();
         t.startRound1();
         Team s16 = t.teams.get(15);
-        t.withdraw(s16, true);
+        t.withdraw(s16);
         check(t.outOfDate(t.round1) != null, "pools flagged out of date after a drop-out: " + t.outOfDate(t.round1));
         t.startRound1();
         int total = 0, threes = 0;
@@ -62,32 +93,25 @@ public final class CoreTest {
         check(t.outOfDate(t.round1).contains("isn't in a pool"), "brought-back team flagged as not in a pool");
         t.startRound1();
 
-        // 2. Mid-pool injury, keep played results: S8 beat S1, then withdraws
+        // 2. Mid-pool withdrawal (USA Pickleball 15.B.4.a): S8 beat S1, then withdraws -> its results don't count
         Map<String, Team> ids = t.byId();
         Pool a = t.round1.get(0);
         String s1 = a.teamIds.get(0), s8 = a.teamIds.get(1), s9 = a.teamIds.get(2), s16id = a.teamIds.get(3);
         play(a, s8, s1, 5);
-        t.withdraw(ids.get(s8), false);
-        int forfeits = 0;
-        for (Match m : a.matches) if (m.forfeit()) forfeits++;
-        check(forfeits == 2, "unplayed matches of the withdrawn team forfeited (got " + forfeits + ")");
+        t.withdraw(ids.get(s8));
         play(a, s1, s9, 3); play(a, s1, s16id, 3); play(a, s9, s16id, 3);
-        check(a.complete(), "pool complete with forfeits");
+        check(a.complete(), "pool complete without the withdrawn team's unplayed matches");
         List<Standings.Row> st = Standings.of(a, ids);
         check(st.get(3).team.id.equals(s8) && st.get(3).withdrawn && st.get(3).tiebreak.equals(Standings.WITHDREW),
                 "withdrawn team listed last (got " + order(st) + ")");
-        check(st.get(0).team.id.equals(s1) && st.get(0).losses == 1, "S1's loss to the withdrawn team still counts");
-        Standings.Row r9 = st.stream().filter(r -> r.team.id.equals(s9)).findFirst().get();
-        check(r9.wins == 2 && r9.diff() == -16 + 16 + 0, "forfeit win: +1 win, no points (S9 diff " + r9.diff() + ")");
+        check(st.get(0).team.id.equals(s1) && st.get(0).wins == 2 && st.get(0).losses == 0,
+                "S1's loss to the withdrawn team no longer counts (got " + st.get(0).wins + "-" + st.get(0).losses + ")");
 
-        // 3. Same, but remove its results: S1's loss disappears
+        // 3. Bring back: the loss counts again; withdraw again for the rest of the test
         t.reinstate(ids.get(s8));
-        check(!a.complete(), "bring back: forfeits cleared");
-        t.withdraw(ids.get(s8), true);
-        st = Standings.of(a, ids);
-        check(a.complete() && st.get(0).team.id.equals(s1) && st.get(0).losses == 0 && st.get(0).wins == 2,
-                "results removed: S1 2-0 (got " + st.get(0).wins + "-" + st.get(0).losses + ")");
-        check(st.get(3).tiebreak.equals(Standings.WITHDREW_VOID), "note says results removed");
+        check(!a.complete() && Standings.of(a, ids).stream().anyMatch(r -> r.team.id.equals(s1) && r.losses == 1),
+                "bring back: results count again");
+        t.withdraw(ids.get(s8));
 
         // 4. Finish Round 1; next team moves up into the Championship bracket
         for (int p = 1; p < 4; p++) {
@@ -105,7 +129,7 @@ public final class CoreTest {
 
         // 5. A Championship team drops before Round 2 starts: redo Round 2
         Team c = ids.get(t.round2.get(0).teamIds.get(0));
-        t.withdraw(c, true);
+        t.withdraw(c);
         check(t.outOfDate(t.round2) != null, "Round 2 flagged out of date");
         t.startRound2();
         champ = 0;
@@ -166,6 +190,8 @@ public final class CoreTest {
         check(Rules.checkGame(12, 10, 11, 1) != null, "12-10 invalid (game ends at 11)");
         check(Rules.checkGame(10, 8, 11, 1) != null, "10-8 invalid (nobody reached 11)");
         check(Rules.checkGame(12, 10, 11, 2) == null, "12-10 valid when win by 2");
+        check(new Tournament().winBy == 2, "default win by 2 (USA Pickleball 15.C)");
+        check(Rules.checkGame(13, 11, 11, 2) == null && Rules.checkGame(11, 10, 11, 2) != null, "win by 2: 13-11 ok, 11-10 not");
         check(Rules.checkMatch(List.of(new int[]{11, 5}, new int[]{5, 11}), 11, 1) != null, "1-1 needs a third game");
         check(Rules.checkMatch(List.of(new int[]{11, 5}, new int[]{11, 5}, new int[]{11, 5}), 11, 1) != null, "no third game after 2-0");
 
@@ -179,8 +205,8 @@ public final class CoreTest {
         play(a, s16, s8, 6);  // S16 +10
         List<Standings.Row> st = Standings.of(a, ids);
         // diffs: S8 = -4 +18 -10 = +4 ; S9 = -4 -18 +6 = -16 ; S16 = -4 -6 +10 = 0
-        check(order(st).equals("S1 S8 S16 S9"), "3-way circular tie -> overall point diff (got " + order(st) + ")");
-        check(st.get(1).tiebreak.contains("overall point differential"), "tiebreak note explains: " + st.get(1).tiebreak);
+        check(order(st).equals("S1 S8 S16 S9"), "3-way circular tie -> point diff (got " + order(st) + ")");
+        check(st.get(1).tiebreak.contains("point differential"), "tiebreak note explains: " + st.get(1).tiebreak);
 
         // Two-way tie decided head to head: Pool B, S2 & S7 both 2-1, S7 beat S2.
         Pool b = t.round1.get(1);
@@ -209,6 +235,7 @@ public final class CoreTest {
 
         registration();
         withdrawals();
+        tiebreakContinues();
 
         System.out.println(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
