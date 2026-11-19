@@ -9,6 +9,7 @@ public final class Pool {
     public final String bracket; // "" in round 1, "Championship" or "Consolation" in round 2
     public final List<String> teamIds = new ArrayList<>();
     public final List<Match> matches = new ArrayList<>();
+    public final List<String> voided = new ArrayList<>(); // withdrawn teams whose results in this pool don't count
 
     public Pool(String name, String bracket) { this.name = name; this.bracket = bracket; }
 
@@ -29,8 +30,15 @@ public final class Pool {
         }
     }
 
+    /** Matches with scores entered (forfeits don't count). */
+    public int scored() {
+        int n = 0;
+        for (Match m : matches) if (!m.games.isEmpty()) n++;
+        return n;
+    }
+
     public boolean complete() {
-        for (Match m : matches) if (!m.done()) return false;
+        for (Match m : matches) if (!m.done() && !voided.contains(m.a) && !voided.contains(m.b)) return false;
         return !matches.isEmpty();
     }
 }

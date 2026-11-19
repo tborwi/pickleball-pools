@@ -6,6 +6,7 @@ public final class Team {
     public String name = "";
     public String player1 = "", player2 = "";
     public double dupr1, dupr2;
+    public boolean withdrawn;  // dropped out: never seeded, never advances; see Tournament.withdraw
     public String regKey = ""; // set when the team came from registrations (Registration.key), so it is added only once
 
     public Team(String id) { this.id = id; }

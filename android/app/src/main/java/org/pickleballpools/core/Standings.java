@@ -23,10 +23,13 @@ import java.util.function.ToDoubleFunction;
  * If every step fails, teams are listed by seed (combined DUPR); once the pool is finished they are flagged for the director.
  */
 public final class Standings {
+    public static final String WITHDREW = "Withdrew";
+    public static final String WITHDREW_VOID = "Withdrew: results removed";
     public static final String UNRESOLVED = "Still tied after all tiebreakers: director decides (listed by DUPR)";
 
     public static final class Row {
         public final Team team;
+        public boolean withdrawn;
         public int place, wins, losses, gamesWon, gamesLost, pointsFor, pointsAgainst;
         public String tiebreak = ""; // how this team was separated from teams with the same record, if it was
 
@@ -40,13 +43,17 @@ public final class Standings {
 
     private Standings(Pool pool) { this.pool = pool; }
 
-    /** Ranked standings for a pool, 1st place first. Only finished matches count. */
+    /**
+     * Ranked standings for a pool, 1st place first. Only finished matches count.
+     * Withdrawn teams are listed last and never rank above a team still playing; matches against a team whose
+     * results were removed (Pool.voided) don't count for anyone.
+     */
     public static List<Row> of(Pool pool, Map<String, Team> teams) {
         Standings s = new Standings(pool);
         Map<String, Row> rows = new LinkedHashMap<>();
         for (String id : pool.teamIds) rows.put(id, new Row(teams.get(id)));
         for (Match m : pool.matches) {
-            if (!m.done()) continue;
+            if (!m.done() || pool.voided.contains(m.a) || pool.voided.contains(m.b)) continue;
             for (String id : new String[]{m.a, m.b}) {
                 Row r = rows.get(id);
                 String o = m.opponent(id);
@@ -57,7 +64,12 @@ public final class Standings {
                 r.pointsAgainst += m.points(o);
             }
         }
-        List<Row> all = new ArrayList<>(rows.values());
+        List<Row> all = new ArrayList<>(), gone = new ArrayList<>();
+        for (Row r : rows.values()) {
+            r.withdrawn = r.team.withdrawn;
+            if (r.withdrawn) { r.tiebreak = pool.voided.contains(r.team.id) ? WITHDREW_VOID : WITHDREW; gone.add(r); }
+            else all.add(r);
+        }
         all.sort(Comparator.comparingInt((Row r) -> -r.wins));
         int i = 0;
         while (i < all.size()) {
@@ -66,6 +78,7 @@ public final class Standings {
             s.resolve(new ArrayList<>(all.subList(i, j)));
             i = j;
         }
+        s.out.addAll(gone);
         for (int k = 0; k < s.out.size(); k++) s.out.get(k).place = k + 1;
         return s.out;
     }
@@ -120,7 +133,7 @@ public final class Standings {
     private double vs(String id, Set<String> opponents, boolean wins) {
         double n = 0;
         for (Match m : pool.matches) {
-            if (!m.done() || !m.involves(id)) continue;
+            if (!m.done() || !m.involves(id) || pool.voided.contains(m.a) || pool.voided.contains(m.b)) continue;
             String o = m.opponent(id);
             if (o.equals(id) || !opponents.contains(o)) continue;
             n += wins ? (id.equals(m.winner()) ? 1 : 0) : m.points(id) - m.points(o);

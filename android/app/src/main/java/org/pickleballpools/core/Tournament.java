@@ -66,9 +66,10 @@ public final class Tournament {
         return m;
     }
 
-    /** Teams by combined DUPR, highest first: this is the seed order. */
+    /** Teams still in the event, by combined DUPR, highest first: this is the seed order. */
     public List<Team> seeded() {
-        List<Team> s = new ArrayList<>(teams);
+        List<Team> s = new ArrayList<>();
+        for (Team x : teams) if (!x.withdrawn) s.add(x);
         s.sort(Comparator.comparingDouble(Team::combined).reversed());
         return s;
     }
@@ -101,7 +102,10 @@ public final class Tournament {
         Map<String, Team> ids = byId();
         List<Standings.Row> champ = new ArrayList<>(), consol = new ArrayList<>();
         for (Pool p : round1)
-            for (Standings.Row r : Standings.of(p, ids)) (r.place <= advancePerPool ? champ : consol).add(r);
+            for (Standings.Row r : Standings.of(p, ids)) {
+                if (r.withdrawn) continue; // withdrawn teams are listed last, so the next team moves up
+                (r.place <= advancePerPool ? champ : consol).add(r);
+            }
         Comparator<Standings.Row> byRecord = Comparator
                 .comparingInt((Standings.Row r) -> r.place)
                 .thenComparingInt(r -> -r.wins)
@@ -117,10 +121,76 @@ public final class Tournament {
 
     private void addBracket(String bracket, List<Standings.Row> rows, int pools, int firstLetter) {
         if (rows.isEmpty()) return;
+        pools = Math.max(1, Math.min(pools, rows.size() / 2)); // no pool smaller than 2 teams
         List<Pool> ps = new ArrayList<>();
         for (int i = 0; i < pools; i++) ps.add(new Pool(letter(firstLetter + i), bracket));
         for (int i = 0; i < rows.size(); i++) ps.get(snake(i, pools)).teamIds.add(rows.get(i).team.id);
         for (Pool p : ps) { p.schedule(); round2.add(p); }
+    }
+
+    // ---------- Drop-outs and reseeding ----------
+
+    /** The round a team is playing in now: Round 2 if it is in a Round 2 pool, else Round 1 (empty if none). */
+    public List<Pool> currentRound(Team x) {
+        for (Pool p : round2) if (p.teamIds.contains(x.id)) return round2;
+        for (Pool p : round1) if (p.teamIds.contains(x.id)) return round1;
+        return new ArrayList<>();
+    }
+
+    /** Matches with scores this team has in its current round. */
+    public int played(Team x) {
+        int n = 0;
+        for (Pool p : currentRound(x)) for (Match m : p.matches) if (m.involves(x.id) && !m.games.isEmpty()) n++;
+        return n;
+    }
+
+    /**
+     * A team drops out. In its current round, either its results are removed for everyone (voidResults), or the
+     * matches already played stand and its unplayed matches are forfeited to the opponents (2-0, no points, so
+     * nobody's point differential changes). Earlier rounds are never changed. Before pools exist it just leaves.
+     */
+    public void withdraw(Team x, boolean voidResults) {
+        x.withdrawn = true;
+        for (Pool p : currentRound(x)) {
+            if (!p.teamIds.contains(x.id)) continue;
+            if (voidResults) { if (!p.voided.contains(x.id)) p.voided.add(x.id); continue; }
+            for (Match m : p.matches) if (m.involves(x.id) && m.games.isEmpty()) m.forfeitWinner = m.opponent(x.id);
+        }
+    }
+
+    /** Undoes withdraw: results count again and the forfeits it created are cleared. */
+    public void reinstate(Team x) {
+        x.withdrawn = false;
+        for (List<Pool> round : List.of(round1, round2))
+            for (Pool p : round) {
+                p.voided.remove(x.id);
+                for (Match m : p.matches) if (m.involves(x.id) && m.games.isEmpty()) m.forfeitWinner = null;
+            }
+    }
+
+    public static int scored(List<Pool> pools) {
+        int n = 0;
+        for (Pool p : pools) n += p.scored();
+        return n;
+    }
+
+    /**
+     * Why a round's pools no longer match the teams still in the event (withdrawals, new or changed teams),
+     * or null if they still match. Round 1 compares against all active teams; Round 2 only checks withdrawals.
+     */
+    public String outOfDate(List<Pool> round) {
+        if (round.isEmpty()) return null;
+        int gone = 0, missing = 0;
+        List<String> inPools = new ArrayList<>();
+        for (Pool p : round) inPools.addAll(p.teamIds);
+        Map<String, Team> ids = byId();
+        for (String id : inPools) if (ids.get(id) == null || ids.get(id).withdrawn) gone++;
+        if (round == round1) for (Team x : seeded()) if (!inPools.contains(x.id)) missing++;
+        if (gone == 0 && missing == 0) return null;
+        String s = "";
+        if (gone > 0) s += gone + " team" + (gone == 1 ? " has" : "s have") + " dropped out";
+        if (missing > 0) s += (s.isEmpty() ? "" : " and ") + missing + " team" + (missing == 1 ? " isn't" : "s aren't") + " in a pool";
+        return s;
     }
 
     /** Teams that qualify for the Finals (top of each finished Championship pool). */
@@ -129,7 +199,7 @@ public final class Tournament {
         Map<String, Team> ids = byId();
         for (Pool p : round2) {
             if (!p.bracket.equals("Championship") || !p.complete()) continue;
-            for (Standings.Row r : Standings.of(p, ids)) if (r.place <= finalistsPerPool) f.add(r.team);
+            for (Standings.Row r : Standings.of(p, ids)) if (r.place <= finalistsPerPool && !r.withdrawn) f.add(r.team);
         }
         return f;
     }

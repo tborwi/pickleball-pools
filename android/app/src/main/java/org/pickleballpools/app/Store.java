@@ -63,7 +63,7 @@ final class Store {
         JSONArray teams = new JSONArray();
         for (Team x : t.teams)
             teams.put(new JSONObject().put("id", x.id).put("name", x.name).put("player1", x.player1)
-                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey));
+                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey).put("withdrawn", x.withdrawn));
         return o.put("teams", teams).put("round1", pools(t.round1)).put("round2", pools(t.round2));
     }
 
@@ -74,10 +74,12 @@ final class Store {
             for (Match m : p.matches) {
                 JSONArray g = new JSONArray();
                 for (int[] s : m.games) g.put(new JSONArray().put(s[0]).put(s[1]));
-                ms.put(new JSONObject().put("a", m.a).put("b", m.b).put("round", m.round).put("games", g));
+                JSONObject mj = new JSONObject().put("a", m.a).put("b", m.b).put("round", m.round).put("games", g);
+                if (m.forfeit()) mj.put("forfeitWinner", m.forfeitWinner);
+                ms.put(mj);
             }
             a.put(new JSONObject().put("name", p.name).put("bracket", p.bracket)
-                    .put("teams", new JSONArray(p.teamIds)).put("matches", ms));
+                    .put("teams", new JSONArray(p.teamIds)).put("matches", ms).put("voided", new JSONArray(p.voided)));
         }
         return a;
     }
@@ -117,6 +119,7 @@ final class Store {
             x.dupr1 = j.optDouble("dupr1", 0);
             x.dupr2 = j.optDouble("dupr2", 0);
             x.regKey = j.optString("regKey");
+            x.withdrawn = j.optBoolean("withdrawn");
             t.teams.add(x);
         }
         readPools(o.optJSONArray("round1"), t.round1);
@@ -135,9 +138,12 @@ final class Store {
                 JSONObject mj = ms.getJSONObject(k);
                 Match m = new Match(mj.getString("a"), mj.getString("b"), mj.optInt("round", 1));
                 JSONArray g = mj.getJSONArray("games");
+                if (mj.has("forfeitWinner")) m.forfeitWinner = mj.getString("forfeitWinner");
                 for (int n = 0; n < g.length(); n++) m.games.add(new int[]{g.getJSONArray(n).getInt(0), g.getJSONArray(n).getInt(1)});
                 p.matches.add(m);
             }
+            JSONArray v = j.optJSONArray("voided");
+            for (int k = 0; v != null && k < v.length(); k++) p.voided.add(v.getString(k));
             into.add(p);
         }
     }

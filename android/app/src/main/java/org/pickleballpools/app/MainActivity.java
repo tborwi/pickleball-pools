@@ -92,21 +92,26 @@ public class MainActivity extends Activity {
         page.removeAllViews();
         logo();
         title(t.name);
-        note(t.teams.size() + " teams · " + stage());
+        int out = t.teams.size() - t.seeded().size();
+        note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage());
 
         button("Registrations (" + t.players.size() + " paid players)", v -> go(regs::show, true));
-        button("Teams (" + t.teams.size() + ")", v -> go(this::teams, true));
+        button("Teams (" + t.seeded().size() + ")", v -> go(this::teams, true));
 
         if (t.round1.isEmpty()) {
             button("Make Round 1 pools", v -> makeRound1());
         } else {
             heading("Round 1");
+            if (t.round2.isEmpty()) redoBanner(t.round1, "Round 1");
             for (Pool p : t.round1) poolButton(p);
+            if (t.round2.isEmpty()) smallButton("Redo Round 1 pools…", v -> redo(t.round1, "Round 1"));
         }
         if (Tournament.complete(t.round1) && t.round2.isEmpty()) button("Make Round 2 pools", v -> makeRound2());
         if (!t.round2.isEmpty()) {
             heading("Round 2");
+            redoBanner(t.round2, "Round 2");
             for (Pool p : t.round2) poolButton(p);
+            smallButton("Redo Round 2 pools…", v -> redo(t.round2, "Round 2"));
             List<Team> f = t.finalists();
             if (!f.isEmpty()) {
                 heading("Qualified for the Finals");
@@ -118,6 +123,45 @@ public class MainActivity extends Activity {
         button("Share results (text, email…)", v -> share());
         button("Settings", v -> settings());
         button("Start a new tournament", v -> newTournament());
+    }
+
+    /** Red warning + button when a round's pools no longer match the teams still in. */
+    void redoBanner(List<Pool> round, String name) {
+        String why = t.outOfDate(round);
+        if (why == null) return;
+        int scored = Tournament.scored(round);
+        text("⚠️ " + why + "." + (scored == 0 ? " No scores yet, so the pools can be redone."
+                : " " + scored + " match score" + (scored == 1 ? " is" : "s are") + " already entered."), 17, true, RED);
+        button("Redo " + name + " pools", v -> redo(round, name));
+    }
+
+    /**
+     * Rebuilds a round's pools from the teams still in: Round 1 by DUPR seed, Round 2 from Round 1 results
+     * (so the next-best team moves up). Scores in that round are erased, so it asks first.
+     */
+    void redo(List<Pool> round, String name) {
+        boolean r1 = round == t.round1;
+        int teams = t.seeded().size(), scored = Tournament.scored(round);
+        if (r1 && teams < t.poolCount * 2) { toast("Only " + teams + " teams left: need " + t.poolCount * 2 + " for " + t.poolCount + " pools. Lower the pool count in Settings."); return; }
+        String msg = r1 ? "Rebuilds the " + t.poolCount + " pools from the " + teams + " teams still in, seeded by DUPR."
+                : "Rebuilds the Championship and Consolation pools from Round 1 results, leaving out teams that dropped out. "
+                  + "The next-best team from their Round 1 pool moves up.";
+        msg += scored == 0 ? "\n\nNo scores have been entered in " + name + " yet."
+                : "\n\n⚠️ This ERASES the " + scored + " match score" + (scored == 1 ? "" : "s") + " already entered in " + name + ".";
+        confirm("Redo " + name + " pools?", msg, () -> {
+            if (r1) t.startRound1(); else t.startRound2();
+            save();
+            back.clear();
+            current = this::home;
+            refresh();
+            toast(name + " pools redone");
+        });
+    }
+
+    void smallButton(String label, View.OnClickListener l) {
+        TextView v = text(label, 16, false, GREEN);
+        v.setPadding(dp(4), dp(10), dp(4), dp(10));
+        v.setOnClickListener(l);
     }
 
     String stage() {
@@ -160,11 +204,20 @@ public class MainActivity extends Activity {
         note("Listed by seed (combined DUPR, highest first). Tap a team to change it.");
         button("+ Add a team", v -> editTeam(null));
         button("Paste a list of teams", v -> pasteTeams());
+        if (!t.round1.isEmpty()) note("Someone can't play? Tap the team: replace the player (change name and DUPR), or Withdraw the team.");
         List<Team> s = t.seeded();
         for (int i = 0; i < s.size(); i++) {
             Team x = s.get(i);
             TextView row = text(String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f",
                     i + 1, x.label(), x.combined(), x.player1, x.dupr1, x.player2, x.dupr2), 18, false, Color.BLACK);
+            card(row);
+            row.setOnClickListener(v -> editTeam(x));
+        }
+        boolean header = false;
+        for (Team x : t.teams) {
+            if (!x.withdrawn) continue;
+            if (!header) { heading("Dropped out"); header = true; }
+            TextView row = text(x.label() + "\n     Tap to bring back", 18, false, GREY);
             card(row);
             row.setOnClickListener(v -> editTeam(x));
         }
@@ -185,6 +238,12 @@ public class MainActivity extends Activity {
         if (existing != null && t.round1.isEmpty())
             b.setNeutralButton("Delete", (d, w) -> confirm("Delete " + existing.label() + "?", "", () -> {
                 t.teams.remove(existing); save(); refresh(); }));
+        else if (existing != null && existing.withdrawn)
+            b.setNeutralButton("Bring back", (d, w) -> confirm("Bring back " + existing.label() + "?",
+                    "Its results count again and forfeits are undone. If its pool was redone without it, redo the pools again to add it.",
+                    () -> { t.reinstate(existing); save(); refresh(); }));
+        else if (existing != null)
+            b.setNeutralButton("Withdraw", (d, w) -> withdraw(existing));
         AlertDialog d = b.show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             Double a = parse(d1), c = parse(d2);
@@ -200,6 +259,31 @@ public class MainActivity extends Activity {
             d.dismiss();
             refresh();
         });
+    }
+
+    /** A team drops out. If it already played in its current round, the director picks how its results count. */
+    void withdraw(Team x) {
+        List<Pool> round = t.currentRound(x);
+        String name = round == t.round2 ? "Round 2" : "Round 1";
+        Runnable after = () -> {
+            save();
+            refresh();
+            if (!round.isEmpty() && Tournament.scored(round) == 0)
+                confirm("Redo " + name + " pools?", x.label() + " dropped out and no scores are entered yet in " + name
+                        + ". Redo the pools so they stay even?", () -> { if (round == t.round1) t.startRound1(); else t.startRound2(); save(); refresh(); });
+        };
+        int played = t.played(x);
+        if (played == 0) {
+            confirm("Withdraw " + x.label() + "?", "It hasn't played yet, so its matches simply won't count. You can bring it back later.",
+                    () -> { t.withdraw(x, true); after.run(); });
+            return;
+        }
+        String[] choices = {
+                "Remove all its results\n(as if it never played in this pool)",
+                "Keep the " + played + " match" + (played == 1 ? "" : "es") + " already played\n(it forfeits the rest: opponents win 2-0, no points)"};
+        new AlertDialog.Builder(this).setTitle(x.label() + " has played " + played + " match" + (played == 1 ? "" : "es") + " in " + name + ". How should its results count?")
+                .setItems(choices, (d, w) -> { t.withdraw(x, w == 0); after.run(); })
+                .setNegativeButton("Cancel", null).show();
     }
 
     void pasteTeams() {
@@ -251,17 +335,20 @@ public class MainActivity extends Activity {
         title(p.title());
         heading("Standings");
         for (Standings.Row r : Standings.of(p, ids)) {
-            String s = String.format(Locale.US, "%d.  %s\n     Won %d  Lost %d  ·  Games %d-%d\n     Points %+d  (%d scored)",
-                    r.place, r.team.label(), r.wins, r.losses, r.gamesWon, r.gamesLost, r.diff(), r.pointsFor);
-            if (p.complete() && !r.tiebreak.isEmpty()) s += "\n     " + r.tiebreak; // notes only once the pool is final
-            card(text(s, 17, false, r.tiebreak.equals(Standings.UNRESOLVED) ? RED : Color.BLACK));
+            String s = String.format(Locale.US, "%s  %s\n     Won %d  Lost %d  ·  Games %d-%d\n     Points %+d  (%d scored)",
+                    r.withdrawn ? "–" : r.place + ".", r.team.label(), r.wins, r.losses, r.gamesWon, r.gamesLost, r.diff(), r.pointsFor);
+            if ((p.complete() || r.withdrawn) && !r.tiebreak.isEmpty()) s += "\n     " + r.tiebreak; // tiebreak notes once final
+            card(text(s, 17, false, r.withdrawn ? GREY : r.tiebreak.equals(Standings.UNRESOLVED) ? RED : Color.BLACK));
         }
         heading("Matches  (tap to enter scores)");
         int round = 0;
         for (Match m : p.matches) {
             if (m.round != round) { round = m.round; text("Round " + round, 16, true, GREY); }
             String s = ids.get(m.a).label() + "\n   vs  " + ids.get(m.b).label() + "\n";
-            s += m.games.isEmpty() ? "   not played yet" : "   " + m.scoreText()
+            if (p.voided.contains(m.a) || p.voided.contains(m.b))
+                s += "   doesn't count: " + ids.get(p.voided.contains(m.a) ? m.a : m.b).label() + " dropped out";
+            else if (m.forfeit()) s += "   forfeit → " + ids.get(m.winner()).label() + " wins";
+            else s += m.games.isEmpty() ? "   not played yet" : "   " + m.scoreText()
                     + (m.done() ? "   → " + ids.get(m.winner()).label() + " won" : "");
             TextView row = text(s, 18, false, Color.BLACK);
             card(row).setBackground(box(m.done() ? LIGHT : 0xFFFFF8E1));
@@ -297,7 +384,7 @@ public class MainActivity extends Activity {
         f.addView(free(text("Games to " + t.pointsToWin + ", win by " + t.winBy + ". Leave Game 3 empty if not needed.", 14, false, GREY)));
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Enter scores").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null)
-                .setNeutralButton("Clear", (x, w) -> { m.games.clear(); save(); refresh(); }).show();
+                .setNeutralButton("Clear", (x, w) -> { m.games.clear(); m.forfeitWinner = null; save(); refresh(); }).show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             List<int[]> games = new ArrayList<>();
             for (int g = 0; g < 3; g++) {
@@ -310,6 +397,7 @@ public class MainActivity extends Activity {
             if (err != null) { toast(err); return; }
             m.games.clear();
             m.games.addAll(games);
+            m.forfeitWinner = null;
             save();
             d.dismiss();
             refresh();

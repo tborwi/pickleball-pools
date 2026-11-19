@@ -26,6 +26,28 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
 points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it.
 
+## When players or teams drop out
+
+Open **Teams** and tap the team.
+
+- **A player can't play but has a substitute:** change the player's name and DUPR. Before play starts, use
+  **Redo Round 1 pools** on the home screen so the new combined DUPR is seeded.
+- **A team drops out before its round starts:** tap **Withdraw**. The app offers to **redo the pools** right away
+  (same seeding and snake order, without that team). Pools can end up one team smaller (a pool of 3 plays 3 matches).
+- **A team drops out during pool play:** tap **Withdraw** and choose either
+  - **Remove all its results** (as if it never played in that pool), or
+  - **Keep the matches already played** and forfeit the rest. Opponents get a 2-0 win with no points, so nobody's
+    point differential changes.
+
+  Withdrawn teams are listed last in the pool and never advance.
+- **A Championship team drops out before Round 2:** withdraw it and use **Redo Round 2 pools**. The next-best team
+  from its Round 1 pool moves up into the Championship bracket.
+- **Changed your mind?** Tap the team under "Dropped out" and **Bring back**.
+
+Redoing a round's pools erases the scores already entered in that round; the app tells you how many first.
+Earlier rounds are never changed. When a registered player is removed (for example after a refund) and their team is
+already in the tournament, the app offers to withdraw the team.
+
 ## Tiebreakers
 
 Teams are ranked by matches won. Teams with the same number of wins are separated by, in order:

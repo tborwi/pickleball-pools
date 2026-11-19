@@ -115,7 +115,8 @@ final class RegistrationsScreen {
         if (existing != null)
             b.setNeutralButton("Delete", (d, w) -> a.confirm("Delete " + x.name + "?",
                     "Only for refunds or mistakes. Teams already added to the tournament stay.", () -> {
-                        t().players.remove(x); a.save(); a.refresh(); }));
+                        t().players.remove(x); a.save(); a.refresh();
+                        offerWithdraw(x); }));
         AlertDialog d = b.show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (name.getText().toString().isBlank()) { a.toast("Enter a name"); return; }
@@ -133,6 +134,21 @@ final class RegistrationsScreen {
             d.dismiss();
             a.refresh();
         });
+    }
+
+    /** A registered player was removed (refund, drop-out): if their team is already in the tournament, offer to withdraw it. */
+    void offerWithdraw(Player x) {
+        if (x.duprId.isEmpty()) return;
+        for (Team team : t().teams) {
+            if (team.withdrawn || !java.util.Arrays.asList(team.regKey.split("\\+")).contains(x.duprId)) continue;
+            if (t().round1.isEmpty())
+                a.confirm("Remove " + team.label() + " too?", x.name + "'s team was already added to Teams.",
+                        () -> { t().teams.remove(team); a.save(); a.refresh(); });
+            else
+                a.confirm("Withdraw " + team.label() + "?", x.name + "'s team is in the tournament. You can also keep it and "
+                        + "replace " + x.name + " with a substitute in Teams.", () -> a.withdraw(team));
+            return;
+        }
     }
 
     // ---------- Payment link ----------

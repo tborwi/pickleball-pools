@@ -41,6 +41,78 @@ public final class CoreTest {
         return sb.toString().trim();
     }
 
+    static Pool poolOf(Tournament t, List<Pool> round, String id) {
+        for (Pool p : round) if (p.teamIds.contains(id)) return p;
+        return null;
+    }
+
+    static void withdrawals() {
+        // 1. No-show before play: redo Round 1 with 15 teams
+        Tournament t = sixteenTeams();
+        t.startRound1();
+        Team s16 = t.teams.get(15);
+        t.withdraw(s16, true);
+        check(t.outOfDate(t.round1) != null, "pools flagged out of date after a drop-out: " + t.outOfDate(t.round1));
+        t.startRound1();
+        int total = 0, threes = 0;
+        for (Pool p : t.round1) { total += p.teamIds.size(); if (p.teamIds.size() == 3) { threes++; check(p.matches.size() == 3, "3-team pool plays 3 matches"); } }
+        check(total == 15 && threes == 1 && poolOf(t, t.round1, s16.id) == null, "redo: 15 teams, one pool of 3, S16 left out");
+        check(t.outOfDate(t.round1) == null, "pools up to date after redo");
+        t.reinstate(s16);
+        check(t.outOfDate(t.round1).contains("isn't in a pool"), "brought-back team flagged as not in a pool");
+        t.startRound1();
+
+        // 2. Mid-pool injury, keep played results: S8 beat S1, then withdraws
+        Map<String, Team> ids = t.byId();
+        Pool a = t.round1.get(0);
+        String s1 = a.teamIds.get(0), s8 = a.teamIds.get(1), s9 = a.teamIds.get(2), s16id = a.teamIds.get(3);
+        play(a, s8, s1, 5);
+        t.withdraw(ids.get(s8), false);
+        int forfeits = 0;
+        for (Match m : a.matches) if (m.forfeit()) forfeits++;
+        check(forfeits == 2, "unplayed matches of the withdrawn team forfeited (got " + forfeits + ")");
+        play(a, s1, s9, 3); play(a, s1, s16id, 3); play(a, s9, s16id, 3);
+        check(a.complete(), "pool complete with forfeits");
+        List<Standings.Row> st = Standings.of(a, ids);
+        check(st.get(3).team.id.equals(s8) && st.get(3).withdrawn && st.get(3).tiebreak.equals(Standings.WITHDREW),
+                "withdrawn team listed last (got " + order(st) + ")");
+        check(st.get(0).team.id.equals(s1) && st.get(0).losses == 1, "S1's loss to the withdrawn team still counts");
+        Standings.Row r9 = st.stream().filter(r -> r.team.id.equals(s9)).findFirst().get();
+        check(r9.wins == 2 && r9.diff() == -16 + 16 + 0, "forfeit win: +1 win, no points (S9 diff " + r9.diff() + ")");
+
+        // 3. Same, but remove its results: S1's loss disappears
+        t.reinstate(ids.get(s8));
+        check(!a.complete(), "bring back: forfeits cleared");
+        t.withdraw(ids.get(s8), true);
+        st = Standings.of(a, ids);
+        check(a.complete() && st.get(0).team.id.equals(s1) && st.get(0).losses == 0 && st.get(0).wins == 2,
+                "results removed: S1 2-0 (got " + st.get(0).wins + "-" + st.get(0).losses + ")");
+        check(st.get(3).tiebreak.equals(Standings.WITHDREW_VOID), "note says results removed");
+
+        // 4. Finish Round 1; next team moves up into the Championship bracket
+        for (int p = 1; p < 4; p++) {
+            Pool q = t.round1.get(p);
+            List<String> s = q.teamIds;
+            for (int i = 0; i < s.size(); i++) for (int j = i + 1; j < s.size(); j++) play(q, s.get(i), s.get(j), 5);
+        }
+        t.startRound2();
+        int champ = 0;
+        for (Pool p : t.round2) if (p.bracket.equals("Championship")) champ += p.teamIds.size();
+        check(champ == 8 && poolOf(t, t.round2, s16id) != null && poolOf(t, t.round2, s8) == null,
+                "Round 2: still 8 Championship teams; S8 out");
+        check(poolOf(t, t.round2, s16id).bracket.equals("Consolation") && poolOf(t, t.round2, s9).bracket.equals("Championship"),
+                "Pool A's 3rd place (S9) moved up to the Championship bracket");
+
+        // 5. A Championship team drops before Round 2 starts: redo Round 2
+        Team c = ids.get(t.round2.get(0).teamIds.get(0));
+        t.withdraw(c, true);
+        check(t.outOfDate(t.round2) != null, "Round 2 flagged out of date");
+        t.startRound2();
+        champ = 0;
+        for (Pool p : t.round2) if (p.bracket.equals("Championship")) champ += p.teamIds.size();
+        check(champ == 8 && poolOf(t, t.round2, c.id) == null, "redo Round 2: next team moved up, still 8");
+    }
+
     static void registration() {
         String csv = "id,Customer Name,Customer Email,Status,Your DUPR ID (custom),Partner name,Partner DUPR ID\n"
                 + "pi_1,\"Smith, Pat\",pat@x.org,Paid,ab12cd,Lee Jones,EF34GH\n"
@@ -136,6 +208,7 @@ public final class CoreTest {
         check(!t.round2.get(0).teamIds.contains(s9) && !t.round2.get(1).teamIds.contains(s9), "S9 (3rd in Pool A) is in Consolation");
 
         registration();
+        withdrawals();
 
         System.out.println(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
