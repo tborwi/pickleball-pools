@@ -1,0 +1,115 @@
+package org.pickleballpools.app;
+
+import android.content.Context;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.pickleballpools.core.Match;
+import org.pickleballpools.core.Pool;
+import org.pickleballpools.core.Team;
+import org.pickleballpools.core.Tournament;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.List;
+
+/** Saves the tournament as one JSON file in the app's private storage after every change. */
+final class Store {
+    private Store() {}
+
+    static File file(Context c) { return new File(c.getFilesDir(), "tournament.json"); }
+
+    static Tournament load(Context c) {
+        try {
+            File f = file(c);
+            if (f.exists()) return fromJson(new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            android.util.Log.e("Store", "load failed", e);
+        }
+        return new Tournament();
+    }
+
+    static void save(Context c, Tournament t) {
+        File f = file(c), tmp = new File(f.getPath() + ".tmp");
+        try (FileOutputStream o = new FileOutputStream(tmp)) {
+            o.write(toJson(t).toString(1).getBytes(StandardCharsets.UTF_8));
+            o.getFD().sync();
+        } catch (Exception e) {
+            throw new RuntimeException("Could not save", e);
+        }
+        if (!tmp.renameTo(f)) throw new RuntimeException("Could not save");
+    }
+
+    static JSONObject toJson(Tournament t) throws JSONException {
+        JSONObject o = new JSONObject()
+                .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
+                .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
+                .put("winBy", t.winBy).put("nextId", t.nextId);
+        JSONArray teams = new JSONArray();
+        for (Team x : t.teams)
+            teams.put(new JSONObject().put("id", x.id).put("name", x.name).put("player1", x.player1)
+                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2));
+        return o.put("teams", teams).put("round1", pools(t.round1)).put("round2", pools(t.round2));
+    }
+
+    private static JSONArray pools(List<Pool> pools) throws JSONException {
+        JSONArray a = new JSONArray();
+        for (Pool p : pools) {
+            JSONArray ms = new JSONArray();
+            for (Match m : p.matches) {
+                JSONArray g = new JSONArray();
+                for (int[] s : m.games) g.put(new JSONArray().put(s[0]).put(s[1]));
+                ms.put(new JSONObject().put("a", m.a).put("b", m.b).put("round", m.round).put("games", g));
+            }
+            a.put(new JSONObject().put("name", p.name).put("bracket", p.bracket)
+                    .put("teams", new JSONArray(p.teamIds)).put("matches", ms));
+        }
+        return a;
+    }
+
+    static Tournament fromJson(JSONObject o) throws JSONException {
+        Tournament t = new Tournament();
+        t.name = o.optString("name", t.name);
+        t.poolCount = o.optInt("poolCount", t.poolCount);
+        t.advancePerPool = o.optInt("advancePerPool", t.advancePerPool);
+        t.finalistsPerPool = o.optInt("finalistsPerPool", t.finalistsPerPool);
+        t.pointsToWin = o.optInt("pointsToWin", t.pointsToWin);
+        t.winBy = o.optInt("winBy", t.winBy);
+        t.nextId = o.optInt("nextId", 1);
+        JSONArray teams = o.optJSONArray("teams");
+        for (int i = 0; teams != null && i < teams.length(); i++) {
+            JSONObject j = teams.getJSONObject(i);
+            Team x = new Team(j.getString("id"));
+            x.name = j.optString("name");
+            x.player1 = j.optString("player1");
+            x.player2 = j.optString("player2");
+            x.dupr1 = j.optDouble("dupr1", 0);
+            x.dupr2 = j.optDouble("dupr2", 0);
+            t.teams.add(x);
+        }
+        readPools(o.optJSONArray("round1"), t.round1);
+        readPools(o.optJSONArray("round2"), t.round2);
+        return t;
+    }
+
+    private static void readPools(JSONArray a, List<Pool> into) throws JSONException {
+        for (int i = 0; a != null && i < a.length(); i++) {
+            JSONObject j = a.getJSONObject(i);
+            Pool p = new Pool(j.getString("name"), j.optString("bracket"));
+            JSONArray ids = j.getJSONArray("teams");
+            for (int k = 0; k < ids.length(); k++) p.teamIds.add(ids.getString(k));
+            JSONArray ms = j.getJSONArray("matches");
+            for (int k = 0; k < ms.length(); k++) {
+                JSONObject mj = ms.getJSONObject(k);
+                Match m = new Match(mj.getString("a"), mj.getString("b"), mj.optInt("round", 1));
+                JSONArray g = mj.getJSONArray("games");
+                for (int n = 0; n < g.length(); n++) m.games.add(new int[]{g.getJSONArray(n).getInt(0), g.getJSONArray(n).getInt(1)});
+                p.matches.add(m);
+            }
+            into.add(p);
+        }
+    }
+}

@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+// Optional release signing: put storeFile/storePassword/keyAlias/keyPassword in android/keystore.properties
+// (git-ignored). Without it the APK is signed with the debug key, which is fine for sideloading.
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+android {
+    namespace 'org.pickleballpools.app'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 1; versionName '1.0.0' }
+    signingConfigs { release { if (keystoreFile.exists()) {
+        storeFile file(keystoreProps['storeFile']); storePassword keystoreProps['storePassword']
+        keyAlias keystoreProps['keyAlias']; keyPassword keystoreProps['keyPassword'] } } }
+    buildTypes { release { minifyEnabled false
+        signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
