@@ -41,6 +41,37 @@ public final class CoreTest {
         return sb.toString().trim();
     }
 
+    static void registration() {
+        String csv = "id,Customer Name,Customer Email,Status,Your DUPR ID (custom),Partner name,Partner DUPR ID\n"
+                + "pi_1,\"Smith, Pat\",pat@x.org,Paid,ab12cd,Lee Jones,EF34GH\n"
+                + "pi_2,Lee Jones,lee@x.org,Succeeded,EF34GH,Pat Smith,AB12CD\r\n"
+                + "pi_3,Kim Lo,kim@x.org,Paid,KK11,Sam Wu,ZZ99\n"           // partner hasn't paid
+                + "pi_4,Ann Ray,ann@x.org,Paid,AA22,Lee Jones,EF34GH\n"     // names Lee, but Lee named Pat
+                + "pi_5,Bo Ng,bo@x.org,Paid,BB33,,\n"                        // needs a partner
+                + "pi_6,Pat Smith,pat@x.org,Paid,AB12CD,Lee Jones,EF34GH\n"  // paid twice
+                + "pi_7,Al Fox,al@x.org,Refunded,CC44,Bo Ng,BB33\n";        // refunded: ignored
+        List<List<String>> rows = Registration.parseCsv(csv);
+        check(rows.size() == 8 && rows.get(1).get(1).equals("Smith, Pat"), "CSV: quoted comma kept in one field");
+        int[] m = Registration.guessColumns(rows.get(0));
+        check(m[Registration.NAME] == 1 && m[Registration.EMAIL] == 2 && m[Registration.STATUS] == 3
+                && m[Registration.DUPR] == 4 && m[Registration.PARTNER_NAME] == 5 && m[Registration.PARTNER_DUPR] == 6
+                && m[Registration.REF] == 0, "column guess from header");
+        Tournament t = new Tournament();
+        Registration.ImportResult r = Registration.importRows(rows, m, t.players);
+        check(r.added == 6 && r.notPaid == 1, "import: 6 paid, 1 refunded skipped (got " + r.added + "/" + r.notPaid + ")");
+        check(Registration.importRows(rows, m, t.players).added == 0, "re-import adds nothing (same payment IDs)");
+        Registration.Pairing p = Registration.pair(t.players);
+        check(p.ready.size() == 1 && p.ready.get(0)[0].duprId.equals("AB12CD"), "ready: Pat + Lee (IDs case-insensitive)");
+        check(p.waiting.size() == 1 && p.waiting.get(0).name.equals("Kim Lo"), "waiting on partner: Kim");
+        check(p.mismatch.size() == 1 && p.mismatch.get(0)[0].name.equals("Ann Ray"), "mismatch: Ann named Lee");
+        check(p.needsPartner.size() == 1 && p.needsPartner.get(0).name.equals("Bo Ng"), "needs a partner: Bo");
+        check(p.duplicates.size() == 1, "paid twice flagged");
+        check(t.addReadyTeams().needRating == 1 && t.teams.isEmpty(), "no team until both ratings are entered");
+        p.ready.get(0)[0].rating = 5.56; p.ready.get(0)[1].rating = 5.51;
+        check(t.addReadyTeams().added == 1 && t.teams.get(0).combined() == 11.07, "ready pair -> team, combined 11.07");
+        check(t.addReadyTeams().added == 0, "team only added once");
+    }
+
     public static void main(String[] args) {
         Team ex = new Team("x");
         ex.dupr1 = 5.56; ex.dupr2 = 5.51;
@@ -103,6 +134,8 @@ public final class CoreTest {
         check(champTeams == 8, "8 teams in the Championship bracket");
         // Seed 1 of round 2 is the best pool winner: all four winners went 3-0; S1 (+..)
         check(!t.round2.get(0).teamIds.contains(s9) && !t.round2.get(1).teamIds.contains(s9), "S9 (3rd in Pool A) is in Consolation");
+
+        registration();
 
         System.out.println(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);

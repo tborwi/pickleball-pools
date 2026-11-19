@@ -43,6 +43,13 @@ public class MainActivity extends Activity {
     LinearLayout page;
     final Deque<Runnable> back = new ArrayDeque<>();
     Runnable current;
+    final RegistrationsScreen regs = new RegistrationsScreen(this);
+
+    @SuppressWarnings("deprecation")
+    @Override protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == RegistrationsScreen.PICK_FILE && res == RESULT_OK && data != null && data.getData() != null) regs.onFile(data.getData());
+    }
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -85,6 +92,7 @@ public class MainActivity extends Activity {
         title(t.name);
         note(t.teams.size() + " teams · " + stage());
 
+        button("Registrations (" + t.players.size() + " paid players)", v -> go(regs::show, true));
         button("Teams (" + t.teams.size() + ")", v -> go(this::teams, true));
 
         if (t.round1.isEmpty()) {

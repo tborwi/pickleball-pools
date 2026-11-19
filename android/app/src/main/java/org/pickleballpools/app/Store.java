@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.pickleballpools.core.Match;
+import org.pickleballpools.core.Player;
 import org.pickleballpools.core.Pool;
 import org.pickleballpools.core.Team;
 import org.pickleballpools.core.Tournament;
@@ -47,11 +48,22 @@ final class Store {
         JSONObject o = new JSONObject()
                 .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
                 .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
-                .put("winBy", t.winBy).put("nextId", t.nextId);
+                .put("winBy", t.winBy).put("nextId", t.nextId).put("paymentLink", t.paymentLink);
+        if (t.importColumns != null) {
+            JSONArray c = new JSONArray();
+            for (int i : t.importColumns) c.put(i);
+            o.put("importColumns", c);
+        }
+        JSONArray players = new JSONArray();
+        for (Player p : t.players)
+            players.put(new JSONObject().put("ref", p.ref).put("name", p.name).put("email", p.email).put("duprId", p.duprId)
+                    .put("partnerName", p.partnerName).put("partnerDuprId", p.partnerDuprId)
+                    .put("rating", p.rating).put("ratingDate", p.ratingDate));
+        o.put("players", players);
         JSONArray teams = new JSONArray();
         for (Team x : t.teams)
             teams.put(new JSONObject().put("id", x.id).put("name", x.name).put("player1", x.player1)
-                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2));
+                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey));
         return o.put("teams", teams).put("round1", pools(t.round1)).put("round2", pools(t.round2));
     }
 
@@ -79,6 +91,22 @@ final class Store {
         t.pointsToWin = o.optInt("pointsToWin", t.pointsToWin);
         t.winBy = o.optInt("winBy", t.winBy);
         t.nextId = o.optInt("nextId", 1);
+        t.paymentLink = o.optString("paymentLink");
+        JSONArray cols = o.optJSONArray("importColumns");
+        if (cols != null) {
+            t.importColumns = new int[cols.length()];
+            for (int i = 0; i < cols.length(); i++) t.importColumns[i] = cols.getInt(i);
+        }
+        JSONArray players = o.optJSONArray("players");
+        for (int i = 0; players != null && i < players.length(); i++) {
+            JSONObject j = players.getJSONObject(i);
+            Player p = new Player();
+            p.ref = j.optString("ref"); p.name = j.optString("name"); p.email = j.optString("email");
+            p.duprId = j.optString("duprId"); p.partnerName = j.optString("partnerName");
+            p.partnerDuprId = j.optString("partnerDuprId");
+            p.rating = j.optDouble("rating", 0); p.ratingDate = j.optString("ratingDate");
+            t.players.add(p);
+        }
         JSONArray teams = o.optJSONArray("teams");
         for (int i = 0; teams != null && i < teams.length(); i++) {
             JSONObject j = teams.getJSONObject(i);
@@ -88,6 +116,7 @@ final class Store {
             x.player2 = j.optString("player2");
             x.dupr1 = j.optDouble("dupr1", 0);
             x.dupr2 = j.optDouble("dupr2", 0);
+            x.regKey = j.optString("regKey");
             t.teams.add(x);
         }
         readPools(o.optJSONArray("round1"), t.round1);

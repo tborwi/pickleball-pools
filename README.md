@@ -7,6 +7,11 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
 
 ## What it does
 
+0. **Registrations (optional).** Every player registers and pays for themselves on your payment page
+   (a Stripe Payment Link, PayPal, Square, Zeffy… anything that can export a spreadsheet). Load the export into the
+   app and it pairs partners by **DUPR ID**, then sorts everyone into: teams ready, waiting on partner to pay,
+   partners don't match, needs a partner, paid twice (refund?), and missing DUPR ID. You look up each player's
+   DUPR rating, type it in (the date is saved), and add the ready teams to the tournament.
 1. **Teams & seeding.** Enter each team's two players and their DUPR ratings (or paste a list from a spreadsheet).
    Teams are seeded by **combined DUPR** (5.56 + 5.51 = 11.07).
 2. **Round 1 pools.** Teams are snaked into pools by seed: A, B, C, D, then D, C, B, A, and so on.
@@ -58,15 +63,38 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `core/Standings.java` | Standings and the tiebreak procedure |
 | `core/Pool.java`, `Match.java`, `Team.java` | Round-robin schedule, match result, team |
 | `core/Rules.java` | Score validation (to 11, win by 1, best of 3) |
+| `core/Registration.java`, `Player.java` | Reading payment exports (CSV), pairing players by DUPR ID |
 | `app/MainActivity.java` | All screens, built in code with big text and buttons |
+| `app/RegistrationsScreen.java` | Registrations screen: import, column matching, ratings, payment link |
 | `app/Store.java` | Saves everything to one JSON file on the device |
 
 `core/` is plain Java with no Android code, so the rules can be tested and reused (for example in a web version).
 
+## Taking registrations and payments
+
+The app never handles money or payment keys. Players pay on your own payment page; the app reads who paid.
+
+**With Stripe (no server needed):**
+1. In the Stripe dashboard create a **Payment Link** for one player's entry fee. Turn on collecting the customer's
+   name and email, and add three custom fields: **Your DUPR ID**, **Partner name**, **Partner DUPR ID**.
+   Stripe can also make a QR code for the link to post at your courts.
+2. In the app: Registrations → **Set the payment link**, then **Share the payment link** to email or text it.
+3. Whenever you want an update, export the payments from Stripe as a CSV file and use **Load a payment file**.
+   The first time, check which column is which (the app guesses from the column names and remembers your choice).
+   Loading the same file again is safe: payments already loaded are skipped, and refunded ones are ignored.
+
+**Any other payment system or a sign-up spreadsheet** works the same way, as long as its export has a column for
+each player's name and DUPR ID (and ideally the partner's DUPR ID, a payment ID and a status). Players who pay
+cash can be added by hand.
+
+DUPR IDs are each player's permanent identity, so they're used to pair partners. DUPR ratings change, so you look
+them up and enter them; the app records the date you checked.
+
 ## Ideas for later
 
-- **Registration and payment.** The simplest route for a non-profit is a Stripe **Payment Link** (made in the Stripe
-  dashboard, no server needed) on a sign-up page, then importing the paid teams with "Paste a list of teams".
-  A built-in flow would need a small server to keep the Stripe secret key off phones.
+- A small optional server (for example a free Cloudflare Worker) that receives Stripe's "payment completed"
+  notifications, so registrations appear in the app without exporting a file. Other payment systems would plug in
+  by offering the same simple list of registrations.
+- Automatic DUPR rating lookup (needs DUPR partner API access).
 - Court assignments and a printable pool sheet.
 - Several phones scoring the same event at once (needs a shared server or cloud storage).

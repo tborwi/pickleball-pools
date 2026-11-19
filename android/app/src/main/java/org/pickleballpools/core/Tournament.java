@@ -23,6 +23,10 @@ public final class Tournament {
     public int pointsToWin = 11;
     public int winBy = 1;
 
+    public String paymentLink = "";  // the page players pay on (Stripe Payment Link, PayPal, Zeffy…), shared from the app
+    public int[] importColumns;      // last column match used for a payment export (Registration.FIELDS order)
+    public final List<Player> players = new ArrayList<>(); // paid registrations, one per player
+
     public final List<Team> teams = new ArrayList<>();
     public final List<Pool> round1 = new ArrayList<>();
     public final List<Pool> round2 = new ArrayList<>();
@@ -32,6 +36,28 @@ public final class Tournament {
         Team t = new Team("t" + nextId++);
         teams.add(t);
         return t;
+    }
+
+    /** Result of {@link #addReadyTeams()}. */
+    public static final class AddResult { public int added, needRating; }
+
+    /**
+     * Turns every ready pair (both paid, both named each other) into a team, once both DUPR ratings are entered.
+     * Pairs already added are skipped.
+     */
+    public AddResult addReadyTeams() {
+        AddResult r = new AddResult();
+        for (Player[] pr : Registration.pair(players).ready) {
+            String key = Registration.key(pr[0], pr[1]);
+            if (teams.stream().anyMatch(x -> x.regKey.equals(key))) continue;
+            if (pr[0].rating <= 0 || pr[1].rating <= 0) { r.needRating++; continue; }
+            Team x = addTeam();
+            x.regKey = key;
+            x.player1 = pr[0].name; x.dupr1 = pr[0].rating;
+            x.player2 = pr[1].name; x.dupr2 = pr[1].rating;
+            r.added++;
+        }
+        return r;
     }
 
     public Map<String, Team> byId() {
