@@ -4,11 +4,25 @@ plugins { id 'com.android.application' }
 def keystoreProps = new Properties()
 def keystoreFile = rootProject.file('keystore.properties')
 if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+// Branding (../../branding): logo.png -> app icon + home screen logo; branding.properties -> app name, icon background.
+def brandingDir = rootProject.file('../branding')
+def branding = new Properties()
+brandingDir.toPath().resolve('branding.properties').toFile().withInputStream { branding.load(it) }
+def generatedRes = layout.buildDirectory.dir('generated/branding-res')
+def copyBranding = tasks.register('copyBranding', Copy) {
+    from(new File(brandingDir, 'logo.png')) { rename { 'brand_logo.png' } }
+    into generatedRes.map { it.dir('drawable-nodpi') }
+}
+preBuild.dependsOn copyBranding
+
 android {
     namespace 'org.pickleballpools.app'
     compileSdk 35
     buildToolsVersion '35.0.0'
-    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 2; versionName '1.1.0' }
+    sourceSets { main { res.srcDirs += generatedRes.get().asFile } }
+    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 3; versionName '1.2.0'
+        resValue 'string', 'app_name', branding.getProperty('appName', 'Pickleball Pools')
+        resValue 'color', 'icon_background', branding.getProperty('iconBackground', '#FFFFFF') }
     signingConfigs { release { if (keystoreFile.exists()) {
         storeFile file(keystoreProps['storeFile']); storePassword keystoreProps['storePassword']
         keyAlias keystoreProps['keyAlias']; keyPassword keystoreProps['keyPassword'] } } }

@@ -41,6 +41,14 @@ a 3-way tie that becomes a 2-way tie is then settled by those two teams' head-to
 finished, the standings show which tiebreaker placed each team. If all five fail, the teams are shown in red,
 listed by DUPR, for the tournament director to decide.
 
+## Make it yours (logo and name)
+
+Replace `branding/logo.png` with your organization's logo and edit `branding/branding.properties` (app name, icon
+background colour), then rebuild. The logo becomes the app icon and appears at the top of the home screen.
+Details: [branding/README.md](branding/README.md).
+
+The default logo belongs to the Heart of Wisconsin Pickleball Association and is not covered by the MIT license.
+
 ## Install
 
 Download `PickleballPools.apk` from the Releases page onto an Android phone or tablet (Android 8 or newer) and open it.
@@ -66,6 +74,7 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `core/Registration.java`, `Player.java` | Reading payment exports (CSV), pairing players by DUPR ID |
 | `app/MainActivity.java` | All screens, built in code with big text and buttons |
 | `app/RegistrationsScreen.java` | Registrations screen: import, column matching, ratings, payment link |
+| `branding/` | Logo and app name, swapped in at build time |
 | `app/Store.java` | Saves everything to one JSON file on the device |
 
 `core/` is plain Java with no Android code, so the rules can be tested and reused (for example in a web version).

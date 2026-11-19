@@ -13,12 +13,12 @@ if [ -f keystore.properties ]; then
 fi
 docker run --rm -u "$(id -u):$(id -g)" \
   -e GRADLE_USER_HOME=/cache/gradle -e HOME=/cache \
-  -v "$PWD":/src -v "$PWD/.cache":/cache "${EXTRA[@]}" -w /src \
+  -v "$(dirname "$PWD")":/repo -v "$PWD/.cache":/cache "${EXTRA[@]}" -w /repo/android \
   ghcr.io/cirruslabs/android-sdk:35 bash -c "
     set -e
     if [ ! -x /cache/gradle-$GV/bin/gradle ]; then
       curl -fsSL -o /cache/g.zip https://services.gradle.org/distributions/gradle-$GV-bin.zip
-      cd /cache && unzip -q g.zip && rm g.zip && cd /src
+      cd /cache && unzip -q g.zip && rm g.zip && cd /repo/android
     fi
     echo sdk.dir=\$ANDROID_HOME > local.properties
     /cache/gradle-$GV/bin/gradle --no-daemon -q assembleRelease

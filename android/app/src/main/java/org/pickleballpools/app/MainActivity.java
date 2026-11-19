@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -89,6 +90,7 @@ public class MainActivity extends Activity {
 
     void home() {
         page.removeAllViews();
+        logo();
         title(t.name);
         note(t.teams.size() + " teams · " + stage());
 
@@ -390,6 +392,18 @@ public class MainActivity extends Activity {
         v.setPadding(0, dp(4), 0, dp(4));
         page.addView(v);
         return v;
+    }
+
+    /** The organization's logo (branding/logo.png), centered at the top of the home screen. */
+    void logo() {
+        ImageView v = new ImageView(this);
+        v.setImageResource(R.drawable.brand_logo);
+        v.setAdjustViewBounds(true);
+        v.setContentDescription(getString(R.string.app_name));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(140));
+        lp.gravity = Gravity.CENTER_HORIZONTAL;
+        v.setLayoutParams(lp);
+        page.addView(v);
     }
 
     void title(String s) { text(s, 28, true, GREEN); }
