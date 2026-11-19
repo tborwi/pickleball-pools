@@ -8,8 +8,9 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
 ## What it does
 
 0. **Registrations (optional).** Every player registers and pays for themselves on your payment page
-   (a Stripe Payment Link, PayPal, Square, Zeffy… anything that can export a spreadsheet). Load the export into the
-   app and it pairs partners by **DUPR ID**, then sorts everyone into: teams ready, waiting on partner to pay,
+   (a Stripe Payment Link, PayPal, Square, Zeffy… anything that can export a spreadsheet), giving **their own DUPR ID**
+   and **their partner's DUPR ID**. Load the export into the app and it makes a team when two players name each other
+   (Pat lists Sam's ID as partner, and Sam lists Pat's), then sorts everyone into: teams ready, waiting on partner to pay,
    partners don't match, needs a partner, paid twice (refund?), and missing DUPR ID. You look up each player's
    DUPR rating, type it in (the date is saved), and add the ready teams to the tournament.
 1. **Teams & seeding.** Enter each team's two players and their DUPR ratings (or paste a list from a spreadsheet).
@@ -119,7 +120,8 @@ The app never handles money or payment keys. Players pay on your own payment pag
 each player's name and DUPR ID (and ideally the partner's DUPR ID, a payment ID and a status). Players who pay
 cash can be added by hand.
 
-DUPR IDs are each player's permanent identity, so they're used to pair partners. DUPR ratings change, so you look
+Every player has their own DUPR ID, a permanent identity, so it's how the app tells who named whom as partner
+(names get misspelled; IDs don't). DUPR ratings change, so you look
 them up and enter them; the app records the date you checked.
 
 ## Ideas for later
