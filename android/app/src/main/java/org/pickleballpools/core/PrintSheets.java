@@ -74,11 +74,9 @@ public final class PrintSheets {
 
     static String when(Tournament t, List<Pool> round) { return round == t.round2 ? t.round2When : t.round1When; }
 
-    /** "Team name (Player 1 / Player 2)", or just the players when there is no team name. */
+    /** "Player 1 / Player 2". */
     public static String players(Team x) {
-        String s = x.player1.isBlank() ? x.player2 : x.player2.isBlank() ? x.player1 : x.player1 + " / " + x.player2;
-        String n = x.name == null ? "" : x.name.trim();
-        return n.isEmpty() ? s : s.isBlank() ? n : n + " (" + s + ")";
+        return x.label();
     }
 
     // ---------------------------------------------------------------- 1. schedule
@@ -111,7 +109,7 @@ public final class PrintSheets {
             r++;
             for (String id : p.teamIds) {
                 Team tm = ids.get(id);
-                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, tm.name == null || tm.name.isBlank() ? tm.player1 : tm.player1.isBlank() ? tm.name.trim() : tm.name.trim() + ": " + tm.player1, Xlsx.LEFT_BOX)
+                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, tm.player1, Xlsx.LEFT_BOX)
                         .set(r, 2, tm.player2, Xlsx.LEFT_BOX).set(r, 3, String.format(Locale.US, "%.2f", tm.combined()), Xlsx.BOX);
                 r++;
             }

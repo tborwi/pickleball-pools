@@ -63,7 +63,7 @@ final class Store {
         o.put("players", players);
         JSONArray teams = new JSONArray();
         for (Team x : t.teams)
-            teams.put(new JSONObject().put("id", x.id).put("name", x.name).put("player1", x.player1)
+            teams.put(new JSONObject().put("id", x.id).put("player1", x.player1)
                     .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey).put("duprId1", x.duprId1).put("duprId2", x.duprId2).put("email1", x.email1).put("email2", x.email2).put("withdrawn", x.withdrawn));
         return o.put("teams", teams).put("round1", pools(t.round1)).put("round2", pools(t.round2));
     }
@@ -119,7 +119,6 @@ final class Store {
         for (int i = 0; teams != null && i < teams.length(); i++) {
             JSONObject j = teams.getJSONObject(i);
             Team x = new Team(j.getString("id"));
-            x.name = j.optString("name");
             x.player1 = j.optString("player1");
             x.player2 = j.optString("player2");
             x.dupr1 = j.optDouble("dupr1", 0);

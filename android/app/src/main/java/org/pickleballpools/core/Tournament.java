@@ -60,9 +60,26 @@ public final class Tournament {
         return "r" + (round2.contains(p) ? 2 : 1) + ":" + p.name + ":" + m.a + ":" + m.b;
     }
 
+    /** A new team with a numbered id (used when the players' DUPR IDs aren't known). */
     public Team addTeam() {
         Team t = new Team("t" + nextId++);
         teams.add(t);
+        return t;
+    }
+
+    /**
+     * A new team identified by its players' DUPR ID pair, e.g. "L8EW8W+Q2ZX9P" (sorted, so the same two players are
+     * always the same team). Falls back to a numbered id when an ID is missing or the pair is already used.
+     */
+    public Team addTeam(String duprId1, String duprId2) {
+        String a = Player.normId(duprId1), b = Player.normId(duprId2);
+        Team t = addTeam();
+        if (!a.isEmpty() && !b.isEmpty() && !a.equals(b)) {
+            String pair = a.compareTo(b) < 0 ? a + "+" + b : b + "+" + a;
+            if (teams.stream().noneMatch(x -> x.id.equals(pair))) t.id = pair;
+        }
+        t.duprId1 = a;
+        t.duprId2 = b;
         return t;
     }
 
@@ -79,7 +96,7 @@ public final class Tournament {
             String key = Registration.key(pr[0], pr[1]);
             if (teams.stream().anyMatch(x -> x.regKey.equals(key))) continue;
             if (pr[0].rating <= 0 || pr[1].rating <= 0) { r.needRating++; continue; }
-            Team x = addTeam();
+            Team x = addTeam(pr[0].duprId, pr[1].duprId);
             x.regKey = key;
             x.player1 = pr[0].name; x.dupr1 = pr[0].rating;
             x.player2 = pr[1].name; x.dupr2 = pr[1].rating;

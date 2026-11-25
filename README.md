@@ -13,7 +13,8 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    (Pat lists Sam's ID as partner, and Sam lists Pat's), then sorts everyone into: teams ready, waiting on partner to pay,
    partners don't match, needs a partner, paid twice (refund?), and missing DUPR ID. You look up each player's
    DUPR rating, type it in (the date is saved), and add the ready teams to the tournament.
-1. **Teams & seeding.** Enter each team's two players and their DUPR ratings (or paste a list from a spreadsheet).
+1. **Teams & seeding.** Enter each team's two players, their DUPR ratings and (optionally) DUPR IDs, or paste a list. A team
+   is just its two players: no team names. Internally a team is its DUPR ID pair, which is unique.
    Teams are seeded by **combined DUPR** (5.56 + 5.51 = 11.07).
 2. **Round 1 pools.** Teams are snaked into pools by seed: A, B, C, D, then D, C, B, A, and so on.
    So Pool A gets seeds 1, 8, 9, 16 and Pool D gets 4, 5, 12, 13. Each pool plays a round robin.

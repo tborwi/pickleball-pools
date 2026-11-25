@@ -16,7 +16,7 @@ public final class CoreTest {
         Tournament t = new Tournament();
         for (int i = 0; i < 16; i++) {
             Team x = t.addTeam();
-            x.name = "S" + (i + 1); // S1 = top seed
+            x.player1 = "S" + (i + 1); // S1 = top seed (no partner name, so label() is just "S1")
             x.dupr1 = 6.0 - i * 0.1;
             x.dupr2 = 5.0;
         }
@@ -53,7 +53,7 @@ public final class CoreTest {
 
     static void tiebreakContinues() {
         Tournament t = new Tournament();
-        for (String n : new String[]{"X", "Y", "Z", "W"}) { Team x = t.addTeam(); x.name = n; x.dupr1 = x.dupr2 = 5; }
+        for (String n : new String[]{"X", "Y", "Z", "W"}) { Team x = t.addTeam(); x.player1 = n; x.dupr1 = x.dupr2 = 5; }
         Pool p = new Pool("A", "");
         for (Team x : t.teams) p.teamIds.add(x.id);
         p.schedule();
@@ -161,9 +161,11 @@ public final class CoreTest {
                 && co.get(t.round1.get(1).matches.get(0)) == 9, "each match gets its printed court");
         check(t.matchKey(t.round1.get(0), m).equals("r1:A:" + m.a + ":" + m.b), "live match key");
         Team nm = new Team("n"); nm.player1 = "Pat Lee"; nm.player2 = "Sam Ray";
-        check(PrintSheets.players(nm).equals("Pat Lee / Sam Ray"), "public name: the two players");
-        nm.name = "Dinkers";
-        check(PrintSheets.players(nm).equals("Dinkers (Pat Lee / Sam Ray)"), "public name: team name plus players");
+        check(nm.label().equals("Pat Lee / Sam Ray"), "a team is shown as its two players");
+        Tournament ti = new Tournament();
+        Team d1 = ti.addTeam("q2zx9p", "L8EW8W"), d2 = ti.addTeam("L8EW8W", "Q2ZX9P"), d3 = ti.addTeam("", "AB12CD");
+        check(d1.id.equals("L8EW8W+Q2ZX9P"), "team id is the sorted DUPR ID pair");
+        check(d2.id.startsWith("t") && d3.id.startsWith("t"), "numbered id when the pair is taken or an ID is missing");
         check(Xlsx.ref(0, 0).equals("A1") && Xlsx.ref(2, 27).equals("AB3"), "cell references");
     }
 

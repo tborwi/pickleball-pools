@@ -352,7 +352,6 @@ public class MainActivity extends Activity {
         for (EditText e : new EditText[]{i1, i2})
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         f.addView(free(text("With an email, each player is sent the photo of every score sheet from their matches, and the results.", 14, false, GREY)));
-        EditText n = field(f, "Team name (optional)", existing == null ? "" : existing.name, false);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(existing == null ? "Add a team" : "Change team")
                 .setView(scroll(f))
@@ -382,12 +381,11 @@ public class MainActivity extends Activity {
             for (Team o : t.teams)
                 if (o != existing && !o.withdrawn) for (String id : new String[]{id1, id2})
                     if (!id.isEmpty() && o.duprIds().contains(id)) { toast("DUPR ID " + id + " is already on " + o.label()); return; }
-            Team x = existing == null ? t.addTeam() : existing;
+            Team x = existing == null ? t.addTeam(id1, id2) : existing;
             x.player1 = p1.getText().toString().trim();
             x.player2 = p2.getText().toString().trim();
             x.dupr1 = a;
             x.dupr2 = c;
-            x.name = n.getText().toString().trim();
             x.duprId1 = id1;
             x.duprId2 = id2;
             x.email1 = m1;
@@ -418,7 +416,7 @@ public class MainActivity extends Activity {
 
     void pasteTeams() {
         LinearLayout f = form();
-        TextView help = text("One team per line:\nPlayer 1, DUPR, Player 2, DUPR, Team name (optional)\n\n"
+        TextView help = text("One team per line:\nPlayer 1, DUPR, Player 2, DUPR, Player 1 DUPR ID, Player 2 DUPR ID (IDs optional)\n\n"
                 + "Example:\nPat Smith, 5.56, Lee Jones, 5.51\n\nCommas or tabs (copied from a spreadsheet) both work.", 16, false, GREY);
         page.removeView(help);
         f.addView(help);
@@ -436,12 +434,11 @@ public class MainActivity extends Activity {
                         String[] c = line.split("[,\t]");
                         try {
                             if (c.length < 4) throw new IllegalArgumentException();
-                            Team x = t.addTeam();
+                            Team x = t.addTeam(c.length > 4 ? c[4].trim() : "", c.length > 5 ? c[5].trim() : "");
                             x.player1 = c[0].trim();
                             x.dupr1 = Double.parseDouble(c[1].trim());
                             x.player2 = c[2].trim();
                             x.dupr2 = Double.parseDouble(c[3].trim());
-                            if (c.length > 4) x.name = c[4].trim();
                             added++;
                         } catch (RuntimeException e) {
                             if (c.length >= 4) t.teams.remove(t.teams.size() - 1);
