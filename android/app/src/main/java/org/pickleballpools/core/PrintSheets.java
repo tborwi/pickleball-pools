@@ -74,7 +74,8 @@ public final class PrintSheets {
 
     static String when(Tournament t, List<Pool> round) { return round == t.round2 ? t.round2When : t.round1When; }
 
-    static String players(Team x) {
+    /** "Team name (Player 1 / Player 2)", or just the players when there is no team name. */
+    public static String players(Team x) {
         String s = x.player1.isBlank() ? x.player2 : x.player2.isBlank() ? x.player1 : x.player1 + " / " + x.player2;
         String n = x.name == null ? "" : x.name.trim();
         return n.isEmpty() ? s : s.isBlank() ? n : n + " (" + s + ")";

@@ -160,6 +160,10 @@ public final class CoreTest {
         check(co.get(t.round1.get(0).matches.get(0)) == 7 && co.get(t.round1.get(0).matches.get(1)) == 8
                 && co.get(t.round1.get(1).matches.get(0)) == 9, "each match gets its printed court");
         check(t.matchKey(t.round1.get(0), m).equals("r1:A:" + m.a + ":" + m.b), "live match key");
+        Team nm = new Team("n"); nm.player1 = "Pat Lee"; nm.player2 = "Sam Ray";
+        check(PrintSheets.players(nm).equals("Pat Lee / Sam Ray"), "public name: the two players");
+        nm.name = "Dinkers";
+        check(PrintSheets.players(nm).equals("Dinkers (Pat Lee / Sam Ray)"), "public name: team name plus players");
         check(Xlsx.ref(0, 0).equals("A1") && Xlsx.ref(2, 27).equals("AB3"), "cell references");
     }
 

@@ -91,8 +91,8 @@ final class Live {
                             .put("aId", m.a).put("bId", m.b)
                             .put("round", m.round).put("stage", round == t.round2 ? "Round 2" : "Round 1")
                             .put("pool", p.title())
-                            .put("a", (p.teamIds.indexOf(m.a) + 1) + "  " + ids.get(m.a).label())
-                            .put("b", (p.teamIds.indexOf(m.b) + 1) + "  " + ids.get(m.b).label()));
+                            .put("a", (p.teamIds.indexOf(m.a) + 1) + "  " + PrintSheets.players(ids.get(m.a)))
+                            .put("b", (p.teamIds.indexOf(m.b) + 1) + "  " + PrintSheets.players(ids.get(m.b))));
                 }
             }
             d.put("matches", ms);
@@ -104,7 +104,7 @@ final class Live {
                     JSONArray teams = new JSONArray();
                     for (String tid : p.teamIds) {
                         Team x = ids.get(tid);
-                        teams.put(new JSONObject().put("id", tid).put("label", x.label())
+                        teams.put(new JSONObject().put("id", tid).put("label", PrintSheets.players(x))
                                 .put("dupr", x.combined()).put("withdrawn", p.voided.contains(tid)));
                         if (!who.has(tid)) who.put(tid, identities(x));
                     }
@@ -118,12 +118,12 @@ final class Live {
                 for (Pool p : round) {
                     JSONArray rows = new JSONArray();
                     for (org.pickleballpools.core.Standings.Row r : org.pickleballpools.core.Standings.of(p, ids))
-                        rows.put(new JSONObject().put("place", r.withdrawn ? "–" : String.valueOf(r.place)).put("label", r.team.label())
+                        rows.put(new JSONObject().put("place", r.withdrawn ? "–" : String.valueOf(r.place)).put("label", PrintSheets.players(r.team))
                                 .put("w", r.wins).put("l", r.losses).put("diff", r.diff()));
                     standings.put(new JSONObject().put("stage", round == t.round2 ? "Round 2" : "Round 1").put("title", p.title()).put("rows", rows));
                 }
             JSONArray fin = new JSONArray();
-            for (Team f : t.finalists()) fin.put(f.label());
+            for (Team f : t.finalists()) fin.put(PrintSheets.players(f));
             d.put("standings", standings).put("finalists", fin);
         } catch (Exception ignored) {}
         return d;
