@@ -399,7 +399,7 @@ async function startEmail(env, me, id, d, url) {
     const lines = mine.map(x => `  Round ${x.round}, court ${x.court}: vs ${x.aId === team ? x.b : x.a}`).join("\n");
     sent += await mailEach(env, id, me.email, to, `${name} has started: live scores`,
       `${name} has started. Good luck!\n\nLive scores and standings (updates by itself):\n${base}/t/${id}\n\n` +
-      `Your team: ${label} (${mine[0].stage}, ${mine[0].pool})\n${lines}\n\n` +
+      `${d.singles ? "You" : "Your team"}: ${label} (${mine[0].stage}, ${mine[0].pool})\n${lines}\n\n` +
       `After each match you'll get an email with the photo of the score sheet.`, "start", d);
   }
   if (!any) await audit(env, id, me.email, "email", "start", { to: [], subject: "start (no player emails)", sent: 0 });

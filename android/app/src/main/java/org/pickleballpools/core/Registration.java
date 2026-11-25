@@ -127,7 +127,10 @@ public final class Registration {
         public final List<Player> noId = new ArrayList<>();           // no DUPR ID: fix by hand
     }
 
-    public static Pairing pair(List<Player> players) {
+    public static Pairing pair(List<Player> players) { return pair(players, false); }
+
+    /** Singles: every player with a DUPR ID (paid once) is ready on their own; partners are ignored. */
+    public static Pairing pair(List<Player> players, boolean singles) {
         Pairing p = new Pairing();
         Map<String, Player> byId = new LinkedHashMap<>();
         for (Player x : players) {
@@ -136,6 +139,7 @@ public final class Registration {
             else byId.put(x.duprId, x);
         }
         for (Player x : byId.values()) {
+            if (singles) { p.ready.add(new Player[]{x}); continue; }
             if (x.partnerDuprId.isEmpty() || x.partnerDuprId.equals(x.duprId)) { p.needsPartner.add(x); continue; }
             Player y = byId.get(x.partnerDuprId);
             if (y == null) p.waiting.add(x);
@@ -144,6 +148,12 @@ public final class Registration {
         }
         return p;
     }
+
+    /** Stable key for an entry (one player in singles, a pair in doubles), so it is added to the tournament once. */
+    public static String key(Player[] entry) { return entry.length == 1 ? entry[0].duprId : key(entry[0], entry[1]); }
+
+    /** A payment file without a partner DUPR ID column is a singles event. */
+    public static boolean singlesFile(int[] map) { return map[PARTNER_DUPR] < 0; }
 
     /** Stable key for a pair, so a team is only added to the tournament once. */
     public static String key(Player a, Player b) {

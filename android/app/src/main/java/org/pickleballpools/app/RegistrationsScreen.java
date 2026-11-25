@@ -40,28 +40,32 @@ final class RegistrationsScreen {
     void show() {
         a.page.removeAllViews();
         a.title("Registrations");
-        a.note(t().players.size() + " paid players. Everyone pays for themselves; partners are matched by DUPR ID.");
+        a.note(t().players.size() + " paid players. " + (t().singles
+                ? "Singles: each player is their own entry."
+                : "Everyone pays for themselves; partners are matched by DUPR ID."));
         a.button("Load a payment file (CSV)", v -> pickFile());
         a.button("Paste payment data", v -> paste());
         a.button("+ Add a player by hand (cash, check…)", v -> editPlayer(null));
         a.button(t().paymentLink.isEmpty() ? "Set the payment link" : "Payment link: " + t().paymentLink, v -> editLink());
         if (!t().paymentLink.isEmpty()) a.button("Share the payment link", v -> shareLink());
 
-        Registration.Pairing p = Registration.pair(t().players);
+        Registration.Pairing p = Registration.pair(t().players, t().singles);
+        String unit = t().singles ? "player" : "team";
 
-        a.heading("✅ Teams ready (" + p.ready.size() + ")");
+        a.heading("✅ " + (t().singles ? "Players" : "Teams") + " ready (" + p.ready.size() + ")");
         if (p.ready.isEmpty()) a.note("None yet.");
         int needRating = 0, toAdd = 0;
         for (Player[] pr : p.ready) {
-            String key = Registration.key(pr[0], pr[1]);
+            String key = Registration.key(pr);
             boolean added = t().teams.stream().anyMatch(x -> x.regKey.equals(key));
-            if (!added && (pr[0].rating <= 0 || pr[1].rating <= 0)) needRating++;
+            if (!added && java.util.Arrays.stream(pr).anyMatch(x -> x.rating <= 0)) needRating++;
             else if (!added) toAdd++;
-            a.text(added ? "Team ✓ in the tournament" : "Team", 15, true, MainActivity.GREY);
+            if (!t().singles) a.text(added ? "Team ✓ in the tournament" : "Team", 15, true, MainActivity.GREY);
+            else if (added) a.text("✓ in the tournament", 15, true, MainActivity.GREY);
             for (Player x : pr) playerCard(x, "");
         }
-        if (toAdd > 0) a.button("Add " + toAdd + " ready team" + (toAdd == 1 ? "" : "s") + " to the tournament", v -> addTeams());
-        if (needRating > 0) a.note(needRating + " team(s) need DUPR ratings first: tap a player to enter their rating.");
+        if (toAdd > 0) a.button("Add " + toAdd + " ready " + unit + (toAdd == 1 ? "" : "s") + " to the tournament", v -> addTeams());
+        if (needRating > 0) a.note(needRating + " " + unit + "(s) need DUPR ratings first: tap a player to enter their rating.");
 
         section("⏳ Waiting on partner to pay", p.waiting.size());
         for (Player x : p.waiting)
@@ -92,7 +96,7 @@ final class RegistrationsScreen {
         if (t().started()) { a.toast("The tournament has started, so teams can't be added."); return; }
         Tournament.AddResult r = t().addReadyTeams();
         a.save();
-        a.toast("Added " + r.added + " team" + (r.added == 1 ? "" : "s") + ". See Teams.");
+        a.toast("Added " + r.added + (t().singles ? " player" : " team") + (r.added == 1 ? "" : "s") + ". See " + (t().singles ? "Players." : "Teams."));
         a.refresh();
     }
 
@@ -107,6 +111,7 @@ final class RegistrationsScreen {
         EditText id = a.field(f, "DUPR ID", x.duprId, false);
         EditText pn = a.field(f, "Partner's name", x.partnerName, false);
         EditText pid = a.field(f, "Partner's DUPR ID", x.partnerDuprId, false);
+        if (t().singles) for (EditText e : new EditText[]{pn, pid}) { e.setVisibility(android.view.View.GONE); hideLabelBefore(f, e); }
         email.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         for (EditText e : new EditText[]{id, pid})
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
@@ -166,8 +171,9 @@ final class RegistrationsScreen {
     }
 
     void shareLink() {
-        String msg = "Register for " + t().name + ": " + t().paymentLink + "\n\nEveryone registers and pays for themselves. "
-                + "Have your DUPR ID and your partner's name and DUPR ID ready.";
+        String msg = "Register for " + t().name + ": " + t().paymentLink + "\n\n" + (t().singles
+                ? "Singles. Have your DUPR ID ready."
+                : "Everyone registers and pays for themselves. Have your DUPR ID and your partner's name and DUPR ID ready.");
         a.startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, msg), "Share the payment link"));
     }
@@ -239,16 +245,28 @@ final class RegistrationsScreen {
             for (int i = 0; i < sp.length; i++) m[i] = sp[i].getSelectedItemPosition() - 1;
             String missing = Registration.missingField(m);
             if (missing != null) { a.toast("Pick the column for " + missing); return; }
+            boolean single = Registration.singlesFile(m), switched = false;
+            if (single != t().singles && t().teams.isEmpty() && !t().started()) { t().singles = single; switched = true; }
             Registration.ImportResult r = Registration.importRows(rows, m, t().players);
             t().importColumns = m;
             a.save();
             d.dismiss();
             a.refresh();
             String msg = "Added " + r.added + " paid player" + (r.added == 1 ? "" : "s") + ".";
+            if (switched) msg += single ? "\n\nNo partner DUPR ID column, so this is a SINGLES event: each player is their own entry."
+                    : "\n\nThis file has partner DUPR IDs, so this is a DOUBLES event.";
+            else if (single != t().singles) msg += "\n\nNote: this file looks like " + (single ? "singles" : "doubles")
+                    + ", but the tournament is " + (t().singles ? "singles" : "doubles") + ". Change it in Settings if needed.";
             if (r.alreadyHad > 0) msg += "\n" + r.alreadyHad + " were already loaded (skipped).";
             if (r.notPaid > 0) msg += "\n" + r.notPaid + " not paid or refunded (skipped).";
             if (!r.problems.isEmpty()) msg += "\n\n" + String.join("\n", r.problems);
             new AlertDialog.Builder(a).setMessage(msg).setPositiveButton("OK", null).show();
         });
+    }
+
+    /** field() puts a label above each input; hide it along with the input. */
+    static void hideLabelBefore(LinearLayout f, android.view.View input) {
+        int i = f.indexOfChild(input);
+        if (i > 0) f.getChildAt(i - 1).setVisibility(android.view.View.GONE);
     }
 }

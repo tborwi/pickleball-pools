@@ -80,7 +80,7 @@ final class Live {
         Tournament t = a.t;
         JSONObject d = new JSONObject();
         try {
-            d.put("name", t.name).put("pointsToWin", t.pointsToWin).put("winBy", t.winBy).put("startedAt", t.startedAt);
+            d.put("name", t.name).put("singles", t.singles).put("pointsToWin", t.pointsToWin).put("winBy", t.winBy).put("startedAt", t.startedAt);
             JSONArray ms = new JSONArray();
             Map<String, Team> ids = t.byId();
             Map<String, String> sn = org.pickleballpools.core.Names.forTournament(t); // short public names
@@ -149,6 +149,7 @@ final class Live {
         JSONArray out = new JSONArray();
         for (int slot = 1; slot <= 2; slot++) {
             String shown = org.pickleballpools.core.Names.player(sn, x, slot);
+            if (slot == 2 && shown.isEmpty()) continue; // singles
             String email = slot == 1 ? x.email1 : x.email2, id = org.pickleballpools.core.Player.normId(slot == 1 ? x.duprId1 : x.duprId2);
             if ((email == null || email.isBlank()) && !id.isEmpty())
                 for (org.pickleballpools.core.Player pl : a.t.players)

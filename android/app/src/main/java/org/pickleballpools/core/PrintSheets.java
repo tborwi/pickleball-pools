@@ -117,9 +117,9 @@ public final class PrintSheets {
             s.set(r, 0, roundName(t, round), Xlsx.HEADER).merge(r, 1, r, 2, p.title().toUpperCase(Locale.US), Xlsx.HEADER)
                     .set(r, 3, "", Xlsx.HEADER).merge(r, 5, r, 5 + Math.max(c.length, 2) - 1, when(t, round), Xlsx.HEADER).height(r, 24);
             r++;
-            s.set(r, 0, "TEAM", Xlsx.BOLD_BOX).set(r, 1, "PLAYER", Xlsx.BOLD_BOX).set(r, 2, "PLAYER", Xlsx.BOLD_BOX)
+            s.set(r, 0, t.singles ? "#" : "TEAM", Xlsx.BOLD_BOX).set(r, 1, "PLAYER", Xlsx.BOLD_BOX).set(r, 2, t.singles ? "" : "PLAYER", Xlsx.BOLD_BOX)
                     .set(r, 3, "DUPR", Xlsx.BOLD_BOX);
-            String[] notes = {p.teamIds.size() + " team round robin", format(t),
+            String[] notes = {p.teamIds.size() + (t.singles ? " player singles round robin" : " team round robin"), format(t),
                     "Ties: USA Pickleball rule 15.B.4", round == t.round1
                     ? "Top " + t.advancePerPool + " go to the Championship pools" : finalsNote(t, p)};
             for (int n = 0; n < notes.length; n++) s.set(r + 1 + n, 5, notes[n], Xlsx.PLAIN);
@@ -194,7 +194,7 @@ public final class PrintSheets {
                 for (int g = 1; g <= 3; g++) s.height(r + g, 26);
                 r += 5;
             }
-            s.set(r, 0, "TEAMS", Xlsx.BOLD);
+            s.set(r, 0, t.singles ? "PLAYERS" : "TEAMS", Xlsx.BOLD);
             r++;
             for (String id : p.teamIds) {
                 s.set(r, 0, num(p, id), Xlsx.BOX).merge(r, 1, r, Math.max(cols - 2, 8), players(sn, ids.get(id)), Xlsx.LEFT_BOX);

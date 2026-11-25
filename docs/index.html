@@ -76,7 +76,7 @@ footer { color: var(--muted); font-size: .85em; border-top: 1px solid var(--rule
   <img src="logo.png" alt="HOWPA logo">
   <div class="cap">Pickleball Pools</div>
   <table>
-    <tr><th>Kind</th><td>Phone app for round-robin doubles tournaments</td></tr>
+    <tr><th>Kind</th><td>Phone app for round-robin doubles and singles tournaments</td></tr>
     <tr><th>Made for</th><td>Heart of Wisconsin Pickleball Association (HOWPA), Plover, Wisconsin</td></tr>
     <tr><th>Used by</th><td>Tournament directors and court captains</td></tr>
     <tr><th>Players</th><td>Need nothing. They get emails and a web link</td></tr>
@@ -87,7 +87,7 @@ footer { color: var(--muted); font-size: .85em; border-top: 1px solid var(--rule
   </table>
 </div>
 
-<p><b>Pickleball Pools</b> is a free phone app that runs round-robin doubles pickleball tournaments. It sorts teams into
+<p><b>Pickleball Pools</b> is a free phone app that runs round-robin pickleball tournaments, doubles or singles. It sorts teams into
 fair pools by their DUPR ratings, keeps every score, works out the standings and tiebreakers by the USA Pickleball
 rulebook, and moves the top teams on to Round 2 and the Finals.</p>
 <p>On tournament day, each <b>court captain</b> enters scores on their own phone, and the scores reach the
@@ -219,6 +219,14 @@ with both players' names, ratings, DUPR IDs and email addresses.</p>
 <div class="note">Getting players straight from Zeffy, with no file to download, is being added. Until then, download the
 payments list from Zeffy and use <b>Load a payment file</b>.</div>
 
+<h3>Singles tournaments</h3>
+<p>A tournament is either <b>doubles</b> or <b>singles</b>. For singles, build the Zeffy form <b>without</b> a
+"Partner DUPR ID" question. When the payments are loaded, the app sees there is no partner column and makes the
+tournament singles by itself: each player is their own entry, placed in pools by their own DUPR rating. Everything else
+works the same. Screens say <i>Players</i> instead of <i>Teams</i>.</p>
+<p>To choose by hand, use the <b>Singles</b> box in <span class="btn">Settings</span>. It can only be changed before any
+players or teams are added.</p>
+
 <h3>4. Round 1 pools</h3>
 <p>Tap <span class="btn">Make Round 1 pools</span>. Teams are ranked by combined DUPR rating and dealt into the pools in a
 back-and-forth order (1, 2, 3, 4, then 4, 3, 2, 1), so every pool has a fair mix. Check the pools before starting. If
@@ -316,6 +324,9 @@ address, or sign in with an emailed code instead.</p>
 <p>Choose <i>Pickleball Pools</i>, and tap <i>Always</i> if offered.</p>
 
 <h3>Registration and teams</h3>
+<p class="q">A singles event came in as doubles (or the other way round).</p>
+<p>The Zeffy form decides it: a "Partner DUPR ID" question means doubles. If no teams are added yet, change the
+<b>Singles</b> box in <b>Settings</b>. If some are, delete them under <b>Teams</b> first.</p>
 <p class="q">A player paid, but has no partner yet.</p>
 <p>They wait in the Registrations list until their partner pays. Each partner must name the other's DUPR ID.</p>
 <p class="q">Two partners will not pair up.</p>

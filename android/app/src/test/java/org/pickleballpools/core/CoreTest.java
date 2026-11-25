@@ -206,6 +206,40 @@ public final class CoreTest {
         check(Xlsx.ref(0, 0).equals("A1") && Xlsx.ref(2, 27).equals("AB3"), "cell references");
     }
 
+    static void singles() {
+        String csv = "id,Name,Email,Status,DUPR ID\n"
+                + "pi_1,Pat Smith,pat@x.org,Paid,AB12CD\n"
+                + "pi_2,Lee Jones,lee@x.org,Paid,EF34GH\n"
+                + "pi_3,Kim Lo,kim@x.org,Paid,KK11\n"
+                + "pi_4,Bo Ng,bo@x.org,Paid,BB33\n"
+                + "pi_5,Pat Smith,pat@x.org,Paid,AB12CD\n"; // paid twice
+        List<List<String>> rows = Registration.parseCsv(csv);
+        int[] m = Registration.guessColumns(rows.get(0));
+        check(Registration.singlesFile(m), "no partner DUPR ID column = singles");
+        Tournament t = new Tournament();
+        t.singles = Registration.singlesFile(m);
+        Registration.importRows(rows, m, t.players);
+        Registration.Pairing p = Registration.pair(t.players, true);
+        check(p.ready.size() == 4 && p.ready.get(0).length == 1 && p.duplicates.size() == 1 && p.needsPartner.isEmpty(),
+                "singles: every paid player is an entry, duplicates still caught");
+        Tournament.AddResult r = t.addReadyTeams();
+        check(r.added == 0 && r.needRating == 4, "singles entries wait for ratings");
+        double[] dupr = {4.1, 3.2, 3.9, 3.5};
+        for (int i = 0; i < 4; i++) t.players.get(i).rating = dupr[i];
+        r = t.addReadyTeams();
+        check(r.added == 4 && t.addReadyTeams().added == 0, "singles: 4 entries added once");
+        Team pat = t.teams.get(0);
+        check(pat.id.equals("AB12CD") && pat.label().equals("Pat Smith") && pat.combined() == 4.1 && pat.duprIds().size() == 1,
+                "singles entry: id = own DUPR ID, label = the player, seeded by own DUPR (" + pat.id + ")");
+        check(t.seeded().get(0) == pat && t.seeded().get(3).player1.equals("Lee Jones"), "singles seeded by own DUPR");
+        t.poolCount = 1;
+        t.startRound1();
+        check(t.round1.get(0).matches.size() == 6, "4 singles players in one pool play 6 matches");
+        check(Names.team(Names.forTournament(t), pat).equals("Pat S."), "singles public name is just the player");
+        check(!Registration.singlesFile(Registration.guessColumns(Registration.parseCsv("Name,DUPR ID,Partner DUPR ID\nA,1,2").get(0))),
+                "partner DUPR ID column = doubles");
+    }
+
     static void registration() {
         String csv = "id,Customer Name,Customer Email,Status,Your DUPR ID (custom),Partner name,Partner DUPR ID\n"
                 + "pi_1,\"Smith, Pat\",pat@x.org,Paid,ab12cd,Lee Jones,EF34GH\n"
@@ -310,6 +344,7 @@ public final class CoreTest {
         withdrawals();
         tiebreakContinues();
         printSheets();
+        singles();
 
         Tournament go = sixteenTeams();
         check(go.start(1) != null && !go.started(), "can't start before the pools are made");

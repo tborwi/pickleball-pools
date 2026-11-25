@@ -168,7 +168,7 @@ public class MainActivity extends Activity {
         title(t.name);
         int out = t.teams.size() - t.seeded().size();
         if (!t.date.isEmpty()) note(t.date);
-        note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage(t));
+        note((t.singles ? "Singles · " + t.seeded().size() + " players" : t.seeded().size() + " teams") + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage(t));
         String courts = t.courts.isEmpty() ? "courts numbered from " + t.firstCourt : "courts " + Tournament.courtsText(t.courts);
         String where = (t.venue.isEmpty() ? "No venue set" : t.venue) + " · " + courts;
         if (t.started()) note("📍 " + where + " (locked)");
@@ -183,7 +183,7 @@ public class MainActivity extends Activity {
             note("Live scoring is on: court captains' scores arrive by themselves." + (w > 0 ? " " + w + " of your scores waiting for signal." : ""));
         }
         button("Registrations (" + t.players.size() + " paid players)", v -> go(regs::show, true));
-        button("Teams (" + t.seeded().size() + ")", v -> go(this::teams, true));
+        button((t.singles ? "Players (" : "Teams (") + t.seeded().size() + ")", v -> go(this::teams, true));
 
         if (t.round1.isEmpty()) {
             button("Make Round 1 pools", v -> makeRound1());
@@ -363,18 +363,21 @@ public class MainActivity extends Activity {
 
     void teams() {
         page.removeAllViews();
-        title("Teams");
-        note("Listed by seed (combined DUPR, highest first). Tap a team to change it.");
-        if (t.started()) note("🔒 The tournament has started: teams can be changed or withdrawn, not added.");
+        String unit = t.singles ? "player" : "team";
+        title(t.singles ? "Players (singles)" : "Teams");
+        note("Listed by seed (" + (t.singles ? "DUPR" : "combined DUPR") + ", highest first). Tap a " + unit + " to change it.");
+        if (t.started()) note("🔒 The tournament has started: " + unit + "s can be changed or withdrawn, not added.");
         else {
-            button("+ Add a team", v -> editTeam(null));
-            button("Paste a list of teams", v -> pasteTeams());
+            button("+ Add a " + unit, v -> editTeam(null));
+            button("Paste a list of " + unit + "s", v -> pasteTeams());
         }
         if (!t.round1.isEmpty()) note("Someone can't play? Tap the team: replace the player (change name and DUPR), or Withdraw the team.");
         List<Team> s = t.seeded();
         for (int i = 0; i < s.size(); i++) {
             Team x = s.get(i);
-            TextView row = text(String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f%s",
+            TextView row = text(t.singles
+                    ? String.format(Locale.US, "%d.  %s   %.2f%s", i + 1, x.label(), x.combined(), x.duprIds().isEmpty() ? "\n     (no DUPR ID)" : "")
+                    : String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f%s",
                     i + 1, x.label(), x.combined(), x.player1, x.dupr1, x.player2, x.dupr2,
                     x.duprIds().size() == 2 ? "" : "\n     (no DUPR ID" + (x.duprIds().isEmpty() ? "s" : " for one player") + ")"), 18, false, MainActivity.INK);
             card(row);
@@ -404,8 +407,9 @@ public class MainActivity extends Activity {
         for (EditText e : new EditText[]{i1, i2})
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         f.addView(free(text("With an email, each player is sent the photo of every score sheet from their matches, and the results.", 14, false, GREY)));
+        if (t.singles) for (EditText e : new EditText[]{p2, d2, i2, e2}) { e.setVisibility(View.GONE); RegistrationsScreen.hideLabelBefore(f, e); }
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add a team" : "Change team")
+                .setTitle(existing == null ? (t.singles ? "Add a player" : "Add a team") : (t.singles ? "Change player" : "Change team"))
                 .setView(scroll(f))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null);
@@ -420,9 +424,10 @@ public class MainActivity extends Activity {
             b.setNeutralButton("Withdraw", (d, w) -> withdraw(existing));
         AlertDialog d = b.show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (t.singles) { p2.setText(""); i2.setText(""); e2.setText(""); d2.setText("0"); }
             Double a = parse(d1), c = parse(d2);
-            if (p1.getText().toString().isBlank() || p2.getText().toString().isBlank()) { toast("Enter both player names"); return; }
-            if (a == null || c == null) { toast("Enter both DUPRs as numbers, like 5.56"); return; }
+            if (p1.getText().toString().isBlank() || (!t.singles && p2.getText().toString().isBlank())) { toast(t.singles ? "Enter the player's name" : "Enter both player names"); return; }
+            if (a == null || c == null) { toast(t.singles ? "Enter the DUPR as a number, like 4.25" : "Enter both DUPRs as numbers, like 5.56"); return; }
             String id1 = org.pickleballpools.core.Player.normId(i1.getText().toString()), id2 = org.pickleballpools.core.Player.normId(i2.getText().toString());
             for (String id : new String[]{id1, id2})
                 if (!id.isEmpty() && !id.matches("[A-Z0-9]{4,12}")) { toast("A DUPR ID is letters and numbers only, like L8EW8W"); return; }
@@ -468,7 +473,9 @@ public class MainActivity extends Activity {
 
     void pasteTeams() {
         LinearLayout f = form();
-        TextView help = text("One team per line:\nPlayer 1, DUPR, Player 2, DUPR, Player 1 DUPR ID, Player 2 DUPR ID (IDs optional)\n\n"
+        TextView help = text(t.singles
+                ? "One player per line:\nName, DUPR, DUPR ID (ID optional)\n\nExample:\nPat Smith, 4.25\n\nCommas or tabs (copied from a spreadsheet) both work."
+                : "One team per line:\nPlayer 1, DUPR, Player 2, DUPR, Player 1 DUPR ID, Player 2 DUPR ID (IDs optional)\n\n"
                 + "Example:\nPat Smith, 5.56, Lee Jones, 5.51\n\nCommas or tabs (copied from a spreadsheet) both work.", 16, false, GREY);
         page.removeView(help);
         f.addView(help);
@@ -484,6 +491,17 @@ public class MainActivity extends Activity {
                     for (String line : box.getText().toString().split("\n")) {
                         if (line.isBlank()) continue;
                         String[] c = line.split("[,\t]");
+                        if (t.singles) {
+                            try {
+                                if (c.length < 2) throw new IllegalArgumentException();
+                                double r = Double.parseDouble(c[1].trim());
+                                Team x = t.addTeam(c.length > 2 ? c[2].trim() : "", "");
+                                x.player1 = c[0].trim();
+                                x.dupr1 = r;
+                                added++;
+                            } catch (RuntimeException e) { bad.add(line.trim()); }
+                            continue;
+                        }
                         try {
                             if (c.length < 4) throw new IllegalArgumentException();
                             Team x = t.addTeam(c.length > 4 ? c[4].trim() : "", c.length > 5 ? c[5].trim() : "");
@@ -608,6 +626,14 @@ public class MainActivity extends Activity {
     void settings() {
         LinearLayout f = form();
         EditText name = field(f, "Tournament name", t.name, false);
+        android.widget.CheckBox single = new android.widget.CheckBox(this);
+        single.setText("Singles (one player per entry, no partner)");
+        single.setTextSize(17);
+        single.setChecked(t.singles);
+        single.setEnabled(!t.started() && t.round1.isEmpty() && t.teams.isEmpty());
+        f.addView(single);
+        if (!single.isEnabled()) f.addView(free(text("Singles or doubles can be changed only before any "
+                + (t.singles ? "players" : "teams") + " are added.", 13, false, GREY)));
         EditText pools = field(f, "Round 1 pools", String.valueOf(t.poolCount), true);
         EditText adv = field(f, "Teams per pool to the Championship bracket", String.valueOf(t.advancePerPool), true);
         EditText fin = field(f, "Teams per Championship pool to the Finals", String.valueOf(t.finalistsPerPool), true);
@@ -631,6 +657,7 @@ public class MainActivity extends Activity {
                 int nc = Integer.parseInt(court.getText().toString().trim());
                 if (nc < 1) throw new NumberFormatException();
                 t.firstCourt = nc;
+                t.singles = single.isChecked();
                 t.round1When = w1.getText().toString().trim();
                 t.round2When = w2.getText().toString().trim();
                 if (np < 1 || np > 26 || na < 1 || nf < 1 || nt < 1 || nb < 1) throw new NumberFormatException();

@@ -25,6 +25,7 @@ public final class Tournament {
 
     public String serverId = "";
     public long liveSeq;             // last live score received from the server     // id on the accounts server once put online (for court captains)
+    public boolean singles;          // singles: each entry ("team") is one player, seeded by their own DUPR
     public String venue = "";        // where it's played (picked from the club's venues, or typed)
     public final List<Integer> courts = new ArrayList<>(); // the venue's courts; empty = numbered on from firstCourt
     public int firstCourt = 1;       // printed sheets: courts are numbered on from here, pool by pool
@@ -143,7 +144,7 @@ public final class Tournament {
         if (!a.isEmpty() && !b.isEmpty() && !a.equals(b)) {
             String pair = a.compareTo(b) < 0 ? a + "+" + b : b + "+" + a;
             if (teams.stream().noneMatch(x -> x.id.equals(pair))) t.id = pair;
-        }
+        } else if (!a.isEmpty() && b.isEmpty() && teams.stream().noneMatch(x -> x.id.equals(a))) t.id = a; // singles: the player's DUPR ID
         t.duprId1 = a;
         t.duprId2 = b;
         return t;
@@ -154,14 +155,21 @@ public final class Tournament {
 
     /**
      * Turns every ready pair (both paid, both named each other) into a team, once both DUPR ratings are entered.
-     * Pairs already added are skipped.
+     * In singles, every paid player with a DUPR ID is an entry of their own. Entries already added are skipped.
      */
     public AddResult addReadyTeams() {
         AddResult r = new AddResult();
-        for (Player[] pr : Registration.pair(players).ready) {
-            String key = Registration.key(pr[0], pr[1]);
+        for (Player[] pr : Registration.pair(players, singles).ready) {
+            String key = Registration.key(pr);
             if (teams.stream().anyMatch(x -> x.regKey.equals(key))) continue;
-            if (pr[0].rating <= 0 || pr[1].rating <= 0) { r.needRating++; continue; }
+            if (java.util.Arrays.stream(pr).anyMatch(p -> p.rating <= 0)) { r.needRating++; continue; }
+            if (pr.length == 1) {
+                Team x = addTeam(pr[0].duprId, "");
+                x.regKey = key;
+                x.player1 = pr[0].name; x.dupr1 = pr[0].rating; x.email1 = pr[0].email;
+                r.added++;
+                continue;
+            }
             Team x = addTeam(pr[0].duprId, pr[1].duprId);
             x.regKey = key;
             x.player1 = pr[0].name; x.dupr1 = pr[0].rating;
