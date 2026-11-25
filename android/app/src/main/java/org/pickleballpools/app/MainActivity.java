@@ -228,6 +228,8 @@ public class MainActivity extends Activity {
         button("Share results (text, email…)", v -> share());
         button("Settings", v -> settings());
         button("Appearance: " + THEMES[themeSetting()], v -> chooseTheme());
+        button("Help (how to use the app)", v -> startActivity(new Intent(Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://tborwi.github.io/pickleball-pools/"))));
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("All tournaments (new, switch)", v -> go(this::tournaments, true));

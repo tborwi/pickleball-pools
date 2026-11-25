@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pickleball Pools Guide</title>
+<meta name="description" content="How to use Pickleball Pools, the tournament app for the Heart of Wisconsin Pickleball Association.">
+<link rel="icon" href="logo.png">
+<style>
+:root {
+  --bg: #ffffff; --text: #202122; --muted: #54595d; --link: #3366cc; --rule: #a2a9b1;
+  --box: #f8f9fa; --box-edge: #a2a9b1; --head: #eaecf0; --note: #fef6e7; --note-edge: #fc3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101418; --text: #eaecf0; --muted: #a2a9b1; --link: #88a3e8; --rule: #54595d;
+    --box: #1b1f24; --box-edge: #54595d; --head: #27292d; --note: #2b2516; --note-edge: #a08022;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101418; --text: #eaecf0; --muted: #a2a9b1; --link: #88a3e8; --rule: #54595d;
+  --box: #1b1f24; --box-edge: #54595d; --head: #27292d; --note: #2b2516; --note-edge: #a08022;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 19px/1.65 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px 16px 64px; }
+a { color: var(--link); text-decoration: none; }
+a:hover, a:focus { text-decoration: underline; }
+h1, h2 { font-family: "Linux Libertine", Georgia, "Times New Roman", serif; font-weight: normal;
+  border-bottom: 1px solid var(--rule); margin: 1.4em 0 .4em; line-height: 1.3; }
+h1 { font-size: 2.1em; margin-top: .3em; }
+h2 { font-size: 1.6em; }
+h3 { font-size: 1.15em; margin: 1.3em 0 .2em; }
+.tagline { color: var(--muted); font-size: .9em; margin: -.2em 0 1em; }
+p, li { margin: .45em 0; }
+ol, ul { padding-left: 1.6em; }
+b, strong { font-weight: 600; }
+.infobox { float: right; clear: right; width: 330px; margin: 0 0 1em 1.4em; background: var(--box);
+  border: 1px solid var(--box-edge); padding: 10px; font-size: .84em; line-height: 1.45; }
+.infobox img { display: block; margin: 4px auto 8px; width: 150px; height: auto; }
+.infobox .cap { text-align: center; font-size: 1.15em; font-weight: 600; margin-bottom: 6px; }
+.infobox table { width: 100%; border-collapse: collapse; }
+.infobox th { text-align: left; vertical-align: top; padding: 4px 8px 4px 0; width: 38%; }
+.infobox td { vertical-align: top; padding: 4px 0; }
+.toc { display: inline-block; background: var(--box); border: 1px solid var(--box-edge); padding: 8px 20px 10px 12px;
+  font-size: .9em; margin: .6em 0 1em; }
+.toc b { display: block; text-align: center; margin-bottom: 4px; }
+.toc ol { margin: 0; padding-left: 1.4em; }
+.toc li { margin: .15em 0; }
+table.w { border-collapse: collapse; margin: .8em 0; background: var(--box); width: 100%; font-size: .92em; }
+table.w th, table.w td { border: 1px solid var(--box-edge); padding: 8px 10px; vertical-align: top; text-align: left; }
+table.w th { background: var(--head); }
+.note { background: var(--note); border-left: 4px solid var(--note-edge); padding: 8px 14px; margin: 1em 0; }
+.btn { font-weight: 600; white-space: nowrap; }
+.q { font-weight: 600; margin-top: 1.1em; }
+.q + p { margin-top: .2em; }
+footer { color: var(--muted); font-size: .85em; border-top: 1px solid var(--rule); margin-top: 3em; padding-top: 1em; }
+.top { font-size: .8em; float: right; }
+@media (max-width: 760px) {
+  body { font-size: 18px; }
+  .infobox { float: none; width: 100%; margin: 0 0 1em; }
+  .toc { display: block; }
+  table.w { font-size: .88em; }
+  table.w th, table.w td { padding: 6px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Pickleball Pools</h1>
+<p class="tagline">A guide for tournament directors and court captains of the Heart of Wisconsin Pickleball Association</p>
+
+<div class="infobox">
+  <img src="logo.png" alt="HOWPA logo">
+  <div class="cap">Pickleball Pools</div>
+  <table>
+    <tr><th>Kind</th><td>Phone app for round-robin doubles tournaments</td></tr>
+    <tr><th>Made for</th><td>Heart of Wisconsin Pickleball Association (HOWPA), Plover, Wisconsin</td></tr>
+    <tr><th>Used by</th><td>Tournament directors and court captains</td></tr>
+    <tr><th>Players</th><td>Need nothing. They get emails and a web link</td></tr>
+    <tr><th>Phones</th><td>Android only (not iPhone)</td></tr>
+    <tr><th>Rules</th><td>USA Pickleball Official Rulebook, 2026</td></tr>
+    <tr><th>Works with</th><td>Zeffy, DUPR, Google, email, Excel</td></tr>
+    <tr><th>Cost</th><td>Free</td></tr>
+  </table>
+</div>
+
+<p><b>Pickleball Pools</b> is a free phone app that runs round-robin doubles pickleball tournaments. It sorts teams into
+fair pools by their DUPR ratings, keeps every score, works out the standings and tiebreakers by the USA Pickleball
+rulebook, and moves the top teams on to Round 2 and the Finals.</p>
+<p>On tournament day, each <b>court captain</b> enters scores on their own phone, and the scores reach the
+<b>tournament director</b>'s phone by themselves. Players and their families follow the scores on a web page, with
+nothing to install. After each match, both teams get an email with the score and a photo of the paper score sheet.</p>
+
+<nav class="toc" aria-label="Contents">
+  <b>Contents</b>
+  <ol>
+    <li><a href="#install">Getting the app</a></li>
+    <li><a href="#roles">Who does what</a></li>
+    <li><a href="#setup">Setting up (once)</a></li>
+    <li><a href="#workflow">How a tournament runs</a></li>
+    <li><a href="#steps">Each step in detail</a></li>
+    <li><a href="#captains">Court captains</a></li>
+    <li><a href="#players">Players and families</a></li>
+    <li><a href="#problems">Problems and what to do</a></li>
+    <li><a href="#services">Services the app works with</a></li>
+    <li><a href="#privacy">What is kept, and where</a></li>
+    <li><a href="#words">Words used in the app</a></li>
+  </ol>
+</nav>
+
+<h2 id="install">Getting the app <a class="top" href="#">top</a></h2>
+<p>The app is not in the Google Play store. It arrives as a file, by email or text message, with a name like
+<i>PickleballPools-1.22.0.apk</i>.</p>
+<ol>
+  <li>Tap the file.</li>
+  <li>Android asks whether to allow installing from that app (Gmail, Messages or Drive). Choose <span class="btn">Allow</span>.
+    This is expected and only happens the first time.</li>
+  <li>Tap <span class="btn">Install</span>, then <span class="btn">Open</span>.</li>
+</ol>
+<p>New versions arrive the same way. Installing a new version over the old one keeps every tournament and score.</p>
+<p>The app works on Android phones only. Someone with an iPhone can still follow the live scores page, and a director can
+enter scores for a captain who has an iPhone.</p>
+
+<h2 id="roles">Who does what <a class="top" href="#">top</a></h2>
+<p>Each person has a <b>role</b>, given by their email address. A person must sign in with that same address for the role
+to work.</p>
+<table class="w">
+  <tr><th>Role</th><th>What they can do</th></tr>
+  <tr><td><b>Admin</b></td><td>Everything. Gives roles to others, keeps the club settings and the list of venues.</td></tr>
+  <tr><td><b>Tournament director</b></td><td>Runs tournaments: teams, pools, printing, starting, scores. Adds court captains,
+    sees the history of every change, emails players.</td></tr>
+  <tr><td><b>Court captain</b></td><td>Enters scores and photographs score sheets for their own courts, in one tournament.</td></tr>
+  <tr><td><b>Treasurer</b></td><td>Can see every tournament.</td></tr>
+  <tr><td><b>Player</b></td><td>No account and no app. Players get emails and the live scores link.</td></tr>
+</table>
+
+<h2 id="setup">Setting up (once) <a class="top" href="#">top</a></h2>
+<p>An admin does this once. Afterwards every new tournament starts with the club's settings already filled in.</p>
+
+<h3>Signing in</h3>
+<p>On the home screen, tap <span class="btn">Account (sign in, roles)</span>. There are two ways in:</p>
+<ul>
+  <li><b>Continue with Google</b>, for a Gmail address. A Google page opens; choose the account, and the app comes back
+    signed in. If the phone asks which app to open, choose <i>Pickleball Pools</i>.</li>
+  <li><b>Email me a sign-in code</b>, for any email address. A 6-digit code arrives from <i>no-reply@tbor.ing</i>. Type it
+    into the app within 10 minutes.</li>
+</ul>
+<p>The phone stays signed in for 90 days.</p>
+
+<h3>Giving someone a role</h3>
+<p><span class="btn">Account</span> &rarr; <span class="btn">People and roles</span> &rarr;
+<span class="btn">+ Give someone a role</span>. Type their email address and choose the role. Court captains are added
+for each tournament instead; see <a href="#captains">Court captains</a>.</p>
+
+<h3>Venues and courts</h3>
+<p>A <b>venue</b> is a place the club plays, with its list of courts. <span class="btn">Account</span> &rarr;
+<span class="btn">Venues and courts</span> &rarr; <span class="btn">+ Add a venue</span>. Type the name, the address if
+wanted, and the courts, such as <i>1-8</i> or <i>1-6, 9, 10</i>. Tap a venue to change it; press and hold to remove it.</p>
+
+<h3>Club settings</h3>
+<p><span class="btn">Account</span> &rarr; <span class="btn">Club settings</span> holds the starting values for every new
+tournament: club name, contact email, payment link, number of pools, teams that move on, points per game and win-by.
+A single tournament can still be changed in its own <span class="btn">Settings</span> before it starts.</p>
+
+<h3>Light or dark screen</h3>
+<p>Under <b>More</b> on the home screen, <span class="btn">Appearance</span> chooses a light screen, a dark screen, or
+whatever the phone itself is set to.</p>
+
+<h2 id="workflow">How a tournament runs <a class="top" href="#">top</a></h2>
+<p>Every tournament goes through the same steps. The home screen shows which step it is on, such as
+<i>Adding teams</i> or <i>Round 1 in progress</i>.</p>
+<ol>
+  <li><b>Open registration in Zeffy.</b> Players pay and give their own DUPR ID and their partner's.</li>
+  <li><b>Create the tournament</b> in the app from that Zeffy event.</li>
+  <li><b>Pick the venue.</b> This decides the court numbers.</li>
+  <li><b>Load the teams.</b> Partners are matched by DUPR ID, and the director checks each rating.</li>
+  <li><b>Make Round 1 pools.</b> The app spreads the teams so every pool is fair.</li>
+  <li><b>Print the sheets</b> the night before.</li>
+  <li><b>Start the tournament</b> on the day. Pools and venue are locked, and every player is emailed the live scores link.</li>
+  <li><b>Captains enter scores</b> after each match and photograph the paper score sheet.</li>
+  <li><b>Make Round 2 pools</b> when Round 1 is finished.</li>
+  <li><b>Play the Finals</b> and <b>email the results</b> to every player.</li>
+</ol>
+
+<h2 id="steps">Each step in detail <a class="top" href="#">top</a></h2>
+
+<h3>1. Creating a tournament</h3>
+<p>On the home screen, under <b>More</b>, tap <span class="btn">All tournaments (new, switch)</span>. This lists every
+tournament on the phone; the one now open is marked. Under <b>New tournament</b>:</p>
+<ul>
+  <li><span class="btn">From a Zeffy registration</span> shows the club's Zeffy events. Choosing one makes a tournament with
+    its name and date. Choosing the same event again opens the tournament already made.</li>
+  <li><span class="btn">Empty</span> starts a blank tournament.</li>
+  <li><span class="btn">Practice (made-up teams)</span> fills in pretend teams, for trying everything out before a real event.</li>
+</ul>
+<p>Tap any tournament in the list to switch to it. Press and hold an old one to delete it.</p>
+
+<h3>2. Picking the venue</h3>
+<p>Below the tournament name, the home screen shows where it is played, for example
+<i>Plover Courts &middot; courts 1-8 (change)</i>. Tap it and choose a venue. <i>Somewhere else</i> lets you type a one-time
+name and courts. Pools take courts in order: with courts 1 to 8 and four pools, Pool A plays on courts 1 and 2, Pool B
+on 3 and 4, and so on.</p>
+
+<h3>3. Registrations and teams</h3>
+<p>Tap <span class="btn">Registrations</span>. Each paid player appears once. Two players become a team when each one
+named the other's DUPR ID.</p>
+<ul>
+  <li><span class="btn">Load a payment file (CSV)</span> reads the list of payments downloaded from Zeffy or another payment
+    site. The app guesses which column is which and remembers it next time.</li>
+  <li><span class="btn">+ Add a player by hand</span> is for cash or check payments.</li>
+  <li>Tap a player to enter their <b>DUPR rating</b>. The app records the date it was checked.</li>
+  <li>When pairs are complete and rated, tap <span class="btn">Add ready teams to the tournament</span>.</li>
+</ul>
+<p>Teams can also be typed in directly under <span class="btn">Teams</span> &rarr; <span class="btn">+ Add a team</span>,
+with both players' names, ratings, DUPR IDs and email addresses.</p>
+<div class="note">Getting players straight from Zeffy, with no file to download, is being added. Until then, download the
+payments list from Zeffy and use <b>Load a payment file</b>.</div>
+
+<h3>4. Round 1 pools</h3>
+<p>Tap <span class="btn">Make Round 1 pools</span>. Teams are ranked by combined DUPR rating and dealt into the pools in a
+back-and-forth order (1, 2, 3, 4, then 4, 3, 2, 1), so every pool has a fair mix. Check the pools before starting. If
+something is wrong, <span class="btn">Redo Round 1 pools</span> builds them again.</p>
+
+<h3>5. Printing the sheets</h3>
+<p>Under <b>More</b>, tap <span class="btn">Print sheets (Excel)</span> and choose the round. The app makes three Excel
+files, laid out like HOWPA's own hand-made sheets:</p>
+<table class="w">
+  <tr><th>Sheet</th><th>What it shows</th><th>Used for</th></tr>
+  <tr><td>Schedule</td><td>Every pool's teams, and which match is on which court each round</td><td>Posting on the wall</td></tr>
+  <tr><td>Court captain sheets</td><td>One page per pool, with spaces for game scores and initials</td><td>The captains' clipboards</td></tr>
+  <tr><td>Results grid</td><td>Every team against every other, with record, points and place</td><td>Posting results</td></tr>
+</table>
+<p>The phone offers to send the files by email or save them to Google Drive. Print them from a computer. Printed again
+later, they include the scores entered so far.</p>
+
+<h3>6. Starting the tournament</h3>
+<p>When the pools are right, tap <span class="btn">Start the tournament</span>. Starting:</p>
+<ul>
+  <li>locks the teams, the pools, the venue and the game settings;</li>
+  <li>opens score entry for the director and the court captains;</li>
+  <li>emails every player the live scores link, if the tournament is online.</li>
+</ul>
+<p><span class="btn">Unlock the pools</span> is there for real mistakes. Scores already entered are kept, but redoing a
+round's pools erases that round's scores.</p>
+
+<h3>7. Scores</h3>
+<p>Captains enter scores on their phones; see <a href="#captains">Court captains</a>. The director can also enter or
+correct any score: tap the pool, then the match. Each game is checked against the rules (to 11, win by 2, unless the
+settings say otherwise). The standings and tiebreakers update at once.</p>
+<p>Ties are broken in the rulebook's order: wins, then head-to-head, then point difference, and so on. A tie that
+nothing breaks is marked <i>director decides</i>, with the teams listed by DUPR rating.</p>
+
+<h3>8. Round 2 and the Finals</h3>
+<p>When every Round 1 match has a score, tap <span class="btn">Make Round 2 pools</span>. The top teams of each pool
+go to the Championship pools; the other teams play in the Consolation pools. The winners of the Championship pools are shown
+under <b>Qualified for the Finals</b>.</p>
+
+<h3>9. Results</h3>
+<ul>
+  <li><span class="btn">Email the results to all players</span> sends the standings, the Finals qualifiers and the live
+    scores link to every player, one email each.</li>
+  <li><span class="btn">Share results</span> sends the standings as plain text, for a club email or Facebook post.</li>
+  <li><span class="btn">History (who changed what)</span> lists every score entered or changed, by whom and when.</li>
+</ul>
+
+<h2 id="captains">Court captains <a class="top" href="#">top</a></h2>
+<p>Each court has a captain who installs the app and enters the scores for the matches on their courts.</p>
+<h3>For the director: adding captains</h3>
+<ol>
+  <li>Sign in, then <span class="btn">Account</span> &rarr; <span class="btn">Put this tournament online</span>. This only
+    needs doing once per tournament.</li>
+  <li><span class="btn">Court captains for</span> <i>(the tournament)</i> &rarr; <span class="btn">+ Add a court captain</span>.
+    Type the captain's email address and their courts, such as <i>7, 8</i>.</li>
+</ol>
+<h3>For the captain: entering scores</h3>
+<ol>
+  <li>Install the app and sign in with the email address the director used.</li>
+  <li>On the home screen, tap <span class="btn">Score my courts</span>. Only the matches on your courts are shown, round by
+    round.</li>
+  <li>After a match, tap it and enter each game's score. Tap <span class="btn">Save</span>.</li>
+  <li>The app offers to take a photo of the paper score sheet. Write your initials on the sheet first. The photo is the
+    receipt for that match.</li>
+</ol>
+<p>Scores and photos entered without signal are kept on the phone and sent by themselves when the signal returns. A red
+line says how many are still waiting. <span class="btn">All live scores</span> opens the full scoreboard.</p>
+
+<h2 id="players">Players and families <a class="top" href="#">top</a></h2>
+<p>Players do not install anything or make an account. They receive:</p>
+<ul>
+  <li>an email at the start with the <b>live scores link</b>;</li>
+  <li>an email after each of their matches, with the score and a link to the photo of the score sheet;</li>
+  <li>an email at the end with the results.</li>
+</ul>
+<p>The live scores page works on any phone or computer and updates by itself every 20 seconds. Anyone with the link can
+watch it. The director can send the link to families with <span class="btn">Share the live scores link</span>.</p>
+<p>In public, players are shown by first name and last initial, such as <i>Pat L.</i> If two players share the same name,
+each gets a number, such as <i>Pat L. (2)</i>, and their emails tell them which number is theirs. Full names, email
+addresses and DUPR IDs appear only on the director's screens.</p>
+
+<h2 id="problems">Problems and what to do <a class="top" href="#">top</a></h2>
+
+<h3>Signing in</h3>
+<p class="q">The sign-in code never arrived.</p>
+<p>Check the junk or spam folder. Codes last 10 minutes, and up to 5 can be sent in an hour. Or use
+<b>Continue with Google</b>.</p>
+<p class="q">Google says the app is blocked, or "access denied".</p>
+<p>While the app is in testing, Google only lets in accounts on its list of testers. Ask the admin to add that Gmail
+address, or sign in with an emailed code instead.</p>
+<p class="q">I signed in, but the director buttons are missing.</p>
+<p>The role was given to a different email address than the one used to sign in. Ask the admin to check
+<b>People and roles</b>, then sign out and in again.</p>
+<p class="q">After choosing Google, the phone asks which app to open.</p>
+<p>Choose <i>Pickleball Pools</i>, and tap <i>Always</i> if offered.</p>
+
+<h3>Registration and teams</h3>
+<p class="q">A player paid, but has no partner yet.</p>
+<p>They wait in the Registrations list until their partner pays. Each partner must name the other's DUPR ID.</p>
+<p class="q">Two partners will not pair up.</p>
+<p>One of them probably mistyped a DUPR ID. Tap the player, correct the ID, and the pair joins.</p>
+<p class="q">A player has no DUPR ID or rating.</p>
+<p>Add the team by hand under <b>Teams</b> and type an estimated rating. The team is marked as missing a DUPR ID.</p>
+<p class="q">Someone paid in cash or by check.</p>
+<p><b>Registrations</b> &rarr; <b>+ Add a player by hand</b>.</p>
+
+<h3>Before the start</h3>
+<p class="q">A team drops out after the pools are made.</p>
+<p>Tap the team and choose <b>Withdraw</b>. A banner says the pools are out of date; tap <b>Redo Round 1 pools</b>.
+<b>Bring back</b> undoes a withdrawal.</p>
+<p class="q">The venue does not have enough courts.</p>
+<p>A red warning says how many courts the round needs. Some pools then share courts, and those matches wait for a free
+court. Making fewer pools in <b>Settings</b> also needs fewer courts.</p>
+<p class="q">The wrong tournament is open.</p>
+<p><b>All tournaments</b>, then tap the right one.</p>
+
+<h3>During play</h3>
+<p class="q">A team leaves partway through.</p>
+<p>Tap the team and choose <b>Withdraw</b>. As the rulebook says, its results in that pool no longer count, and the
+standings are worked out again.</p>
+<p class="q">The pools must change after starting.</p>
+<p>Tap <b>Unlock the pools</b>, fix them, and start again. Redoing a round's pools erases that round's scores.</p>
+<p class="q">A wrong score was entered.</p>
+<p>Tap the match again and correct it. The history keeps both the old and new score.</p>
+<p class="q">A captain sees "the director hasn't put the pools online yet".</p>
+<p>The director's phone has not sent the pools. It needs signal, the tournament must be online, and it must be started.
+The captain's screen checks again every 20 seconds.</p>
+<p class="q">A captain sees no matches, or the wrong ones.</p>
+<p>The director typed a different email address or the wrong courts. Fix it under <b>Court captains</b>.</p>
+<p class="q">No signal at the courts.</p>
+<p>Keep entering scores and taking photos. They are kept on the phone and sent by themselves when signal returns.</p>
+<p class="q">A captain's phone dies, or the captain has an iPhone.</p>
+<p>The director enters that court's scores on their own phone. Another captain can also be given those courts.</p>
+<p class="q">A court can't be used.</p>
+<p>The app cannot move a single match to another court yet. Play it on any free court, and have the director enter the
+score.</p>
+<p class="q">The standings show "director decides".</p>
+<p>Every rulebook tiebreaker has been tried and the teams are still level. The director decides, for example by a
+playoff game, and the teams are listed by DUPR rating in the meantime.</p>
+
+<h3>Emails and the live page</h3>
+<p class="q">A player did not get an email.</p>
+<p>Check that the player's email is on their team or registration, and ask them to look in their junk folder. Emails come
+from <i>no-reply@tbor.ing</i>. The director can always send the link with <b>Share the live scores link</b>.</p>
+<p class="q">The live scores page is not changing.</p>
+<p>It updates every 20 seconds, once the director's phone has signal. Scores still on a captain's phone without signal
+appear when they are sent.</p>
+
+<h3>The phone</h3>
+<p class="q">The screen is too dark, or too bright.</p>
+<p><b>More</b> &rarr; <b>Appearance</b>.</p>
+<p class="q">The director's phone is lost or broken.</p>
+<p>The pools and teams live on the director's phone. Scores sent by captains are also kept on the club's server, and the
+live scores page keeps working. Keep the phone charged, and share the results when the tournament ends.</p>
+
+<h2 id="services">Services the app works with <a class="top" href="#">top</a></h2>
+<table class="w">
+  <tr><th>Service</th><th>What it is</th><th>How the app uses it</th></tr>
+  <tr><td><a href="https://www.zeffy.com">Zeffy</a></td><td>Free payment and ticketing site for non-profits</td>
+    <td>Players register and pay there. The app lists the club's Zeffy events to create tournaments. Reading the players
+    directly from Zeffy is being added.</td></tr>
+  <tr><td><a href="https://www.dupr.com">DUPR</a></td><td>Dynamic Universal Pickleball Rating, the rating most players
+    have</td><td>Each player's DUPR ID links partners together, and ratings set the pools. Ratings are looked up by hand
+    today. Sending results to DUPR is planned; the club has asked DUPR for access.</td></tr>
+  <tr><td>Google</td><td>Gmail accounts</td><td>Sign-in with <b>Continue with Google</b>. The app only learns the email
+    address and name.</td></tr>
+  <tr><td>Email</td><td>Sent through <a href="https://resend.com">Resend</a> from <i>no-reply@tbor.ing</i></td>
+    <td>Sign-in codes and players' emails: start, each match, and results.</td></tr>
+  <tr><td><a href="https://www.cloudflare.com">Cloudflare</a></td><td>Internet company that hosts the club's small server
+    for free</td><td>Holds accounts, live scores, score sheet photos, venues and club settings, and serves the live
+    scores page.</td></tr>
+  <tr><td>Excel</td><td>Spreadsheet files</td><td>The printed sheets. They also open in Google Sheets.</td></tr>
+  <tr><td><a href="https://usapickleball.org">USA Pickleball</a></td><td>The sport's rule-making body</td>
+    <td>Tiebreakers, withdrawals and scoring follow its Official Rulebook (2026).</td></tr>
+</table>
+<p>A mailing list through Mailchimp, for club news and results, is planned.</p>
+
+<h2 id="privacy">What is kept, and where <a class="top" href="#">top</a></h2>
+<ul>
+  <li><b>On the director's phone:</b> teams, names, emails, DUPR IDs and ratings, pools and scores.</li>
+  <li><b>On the club's server:</b> staff accounts and roles, tournament pools and scores, score sheet photos, and the
+    history of changes.</li>
+  <li><b>From DUPR:</b> only each player's DUPR ID and current rating, for seeding.</li>
+  <li><b>In public:</b> the live scores page shows first names, last initials and scores. No emails or DUPR IDs.</li>
+</ul>
+
+<h2 id="words">Words used in the app <a class="top" href="#">top</a></h2>
+<table class="w">
+  <tr><th>Word</th><th>Meaning</th></tr>
+  <tr><td>Pool</td><td>A group of teams that each play every other team once</td></tr>
+  <tr><td>Round 1, Round 2</td><td>The first set of pools, then the pools for the top teams and the rest</td></tr>
+  <tr><td>Championship bracket</td><td>The Round 2 pools for the teams that did best in Round 1</td></tr>
+  <tr><td>Finals</td><td>The last matches, between the Championship pool winners</td></tr>
+  <tr><td>Seeding</td><td>Ranking teams by combined DUPR rating to make fair pools</td></tr>
+  <tr><td>Start</td><td>The moment the pools are locked and scoring opens</td></tr>
+  <tr><td>Online</td><td>The tournament is on the club's server, so captains and the live page can see it</td></tr>
+  <tr><td>Receipt</td><td>The captain's photo of the paper score sheet, with initials</td></tr>
+  <tr><td>Withdraw</td><td>Take a team out of the tournament; its results stop counting</td></tr>
+</table>
+
+<footer>
+  Pickleball Pools is free and open source. Questions about a tournament: ask the tournament director.
+  <a href="https://github.com/tborwi/pickleball-pools">Source code</a>.
+</footer>
+</main>
+</body>
+</html>
