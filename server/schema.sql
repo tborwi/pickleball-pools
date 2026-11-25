@@ -123,3 +123,16 @@ CREATE TABLE IF NOT EXISTS venues (
   updated INTEGER NOT NULL,
   updated_by TEXT NOT NULL DEFAULT ''
 );
+
+-- Published results of finished tournaments: a public copy (short names, pools, scores, standings; no emails or
+-- DUPR IDs), shown at /results and /results/<id>, and downloadable as JSON.
+CREATE TABLE IF NOT EXISTS results (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  day TEXT NOT NULL DEFAULT '',
+  venue TEXT NOT NULL DEFAULT '',
+  singles INTEGER NOT NULL DEFAULT 0,
+  data TEXT NOT NULL,
+  published INTEGER NOT NULL,
+  published_by TEXT NOT NULL DEFAULT ''
+);

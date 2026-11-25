@@ -36,6 +36,9 @@ async function route(req, env) {
   if (p === "/auth/google/callback" && m === "GET") return googleCallback(env, url);
   if (p === "/auth/exchange" && m === "POST") return exchange(req, env);
   // Public, no sign-in: players don't have accounts. Links are long random ids, shared by the director or emailed.
+  if ((p === "/results" || p === "/results.json") && m === "GET") return resultsIndex(env, p.endsWith(".json"));
+  const rs = p.match(/^\/results\/([\w-]{1,64})(\.json)?$/);
+  if (rs && m === "GET") return resultsPage(env, rs[1], !!rs[2]);
   const pub = p.match(/^\/(t|public|r)\/([\w-]+)$/);
   if (pub && m === "GET") return pub[1] === "t" ? livePage(env, pub[2]) : pub[1] === "public" ? publicLive(env, pub[2]) : receiptByToken(env, pub[2]);
 
@@ -55,6 +58,8 @@ async function route(req, env) {
 
   if (p === "/club" && m === "GET") return getClub(env);
   if (p === "/club" && m === "PUT") { need(me, "admin"); return putClub(req, env, me); }
+  if (p === "/results" && m === "POST") { need(me, "admin", "director"); return publishResults(req, env, me); }
+  if (p === "/results/remove" && m === "POST") { need(me, "admin", "director"); return removeResults(req, env, me); }
   if (p === "/venues" && m === "GET") { need(me, "admin", "director"); return getVenues(env); }
   if (p === "/venues" && m === "PUT") { need(me, "admin"); return putVenue(req, env, me); }
   if (p === "/venues/remove" && m === "POST") { need(me, "admin"); return removeVenue(req, env, me); }
@@ -619,6 +624,20 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+const RESULTS_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__</title>
+<style>
+:root{--bg:#fff;--fg:#111;--muted:#555;--card:#f4f6f4;--accent:#1b5e20;--done:#e8f5e9;--todo:#fff8e1}
+@media (prefers-color-scheme:dark){:root{--bg:#121412;--fg:#eee;--muted:#aaa;--card:#1e221e;--accent:#81c784;--done:#1f3321;--todo:#33301f}}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.4 system-ui,sans-serif}a{color:var(--accent)}
+main{max-width:760px;margin:0 auto;padding:16px}h1{color:var(--accent);font-size:26px;margin:0 0 4px}
+h2{font-size:21px;margin:24px 0 8px}.muted{color:var(--muted);font-size:15px}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+td{padding:8px 10px;border-bottom:1px solid rgba(128,128,128,.2)}td.n{text-align:right;white-space:nowrap}
+.m{background:var(--todo);border-radius:10px;padding:10px 12px;margin:6px 0}.m.done{background:var(--done)}
+.fin{font-weight:600;color:var(--accent)}a.t{display:block;background:var(--card);border-radius:10px;padding:12px 14px;margin:8px 0;color:var(--fg);text-decoration:none}
+</style></head><body><main>__BODY__</main></body></html>`;
+
 const LIVE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>__NAME__ – live scores</title>
 <style>
@@ -673,6 +692,75 @@ async function getImage(env, tid, rid) {
   const row = await env.DB.prepare("SELECT data FROM receipt_images WHERE id = ?").bind(rid).first();
   if (!row) throw new Http(404, "Photo missing.");
   return new Uint8Array(row.data);
+}
+
+// ------------------------------------------------------------------ published results (public archive)
+// Only these fields are kept, whatever the phone sends, so nothing private (emails, DUPR IDs, team ids) is published.
+const str = (v, n = 120) => String(v == null ? "" : v).slice(0, n);
+function cleanResults(r) {
+  const games = g => (Array.isArray(g) ? g : []).slice(0, 5).map(x => [Math.max(0, Math.min(99, +x[0] || 0)), Math.max(0, Math.min(99, +x[1] || 0))]);
+  const scores = {};
+  for (const [k, g] of Object.entries(r.scores || {}).slice(0, 2000)) if (/^[\w:+.-]{1,200}$/.test(k)) scores[k] = games(g);
+  return {
+    name: str(r.name, 100) || "Tournament", day: str(r.day, 40), venue: str(r.venue, 80), singles: !!r.singles,
+    pointsToWin: +r.pointsToWin || 11, winBy: +r.winBy || 2,
+    finalists: (r.finalists || []).slice(0, 50).map(x => str(x)),
+    standings: (r.standings || []).slice(0, 60).map(s => ({ stage: str(s.stage, 30), title: str(s.title, 60),
+      rows: (s.rows || []).slice(0, 40).map(x => ({ place: str(x.place, 4), label: str(x.label), w: +x.w || 0, l: +x.l || 0, diff: +x.diff || 0 })) })),
+    matches: (r.matches || []).slice(0, 2000).map(x => ({ key: str(x.key, 200), court: str(x.court, 10), round: +x.round || 1,
+      stage: str(x.stage, 30), pool: str(x.pool, 60), a: str(x.a), b: str(x.b) })),
+    scores,
+  };
+}
+async function publishResults(req, env, me) {
+  const b = await body(req);
+  const id = /^[\w-]{8,64}$/.test(b.id || "") ? b.id : crypto.randomUUID();
+  const d = cleanResults(b.results || {});
+  if (!d.standings.length) throw new Http(400, "There are no pools to publish yet.");
+  await env.DB.prepare("INSERT INTO results (id, name, day, venue, singles, data, published, published_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET name = excluded.name, day = excluded.day, venue = excluded.venue, singles = excluded.singles, " +
+    "data = excluded.data, published = excluded.published, published_by = excluded.published_by")
+    .bind(id, d.name, d.day, d.venue, d.singles ? 1 : 0, JSON.stringify(d), nowS(), me.email).run();
+  await audit(env, "", me.email, "results", "", { id, name: d.name });
+  return json({ id, url: "/results/" + id });
+}
+async function removeResults(req, env, me) {
+  const id = String((await body(req)).id || "");
+  const r = await env.DB.prepare("SELECT name FROM results WHERE id = ?").bind(id).first();
+  if (!r) throw new Http(404, "Those results aren't published.");
+  await env.DB.prepare("DELETE FROM results WHERE id = ?").bind(id).run();
+  await audit(env, "", me.email, "results", "", { id, name: r.name, change: "removed" });
+  return json({ ok: true });
+}
+const page = (title, body) => new Response(RESULTS_HTML.replace(/__TITLE__/g, escapeHtml(title)).replace("__BODY__", body),
+  { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=60" } });
+const cors = r => { r.headers.set("Access-Control-Allow-Origin", "*"); return r; };
+async function resultsIndex(env, asJson) {
+  const rows = (await env.DB.prepare("SELECT id, name, day, venue, singles, published FROM results ORDER BY published DESC").all()).results;
+  if (asJson) return cors(json({ results: rows.map(r => ({ ...r, singles: !!r.singles, url: "/results/" + r.id })) }));
+  const list = rows.map(r => `<a class="t" href="/results/${escapeHtml(r.id)}"><b>${escapeHtml(r.name)}</b><br><span class="muted">` +
+    escapeHtml([r.day, r.venue, r.singles ? "Singles" : "Doubles"].filter(Boolean).join(" · ")) + "</span></a>").join("");
+  return page("Past tournaments", `<h1>Past tournaments</h1>${list || '<p class="muted">Nothing published yet.</p>'}`);
+}
+async function resultsPage(env, id, asJson) {
+  const r = await env.DB.prepare("SELECT data FROM results WHERE id = ?").bind(id).first();
+  if (!r) return asJson ? cors(json({ error: "Not published" }, 404)) : new Response("No such results.", { status: 404 });
+  const d = JSON.parse(r.data);
+  if (asJson) return cors(json(d));
+  let h = `<p class="muted"><a href="/results">&larr; Past tournaments</a></p><h1>${escapeHtml(d.name)}</h1><p class="muted">` +
+    escapeHtml([d.day, d.venue, d.singles ? "Singles" : "Doubles", `games to ${d.pointsToWin}, win by ${d.winBy}`].filter(Boolean).join(" · ")) + "</p>";
+  if (d.finalists.length) h += "<h2>Qualified for the Finals</h2>" + d.finalists.map(f => `<div class="fin">🏆 ${escapeHtml(f)}</div>`).join("");
+  for (const s of d.standings) {
+    h += `<h2>${escapeHtml(s.stage + " · " + s.title)}</h2><table>` + s.rows.map(x => `<tr><td>${escapeHtml(x.place)}. ${escapeHtml(x.label)}</td>` +
+      `<td class="n">${x.w}-${x.l}</td><td class="n">${x.diff > 0 ? "+" : ""}${x.diff}</td></tr>`).join("") + "</table>";
+    for (const m of d.matches.filter(m => m.stage === s.stage && m.pool === s.title)) {
+      const g = d.scores[m.key] || [];
+      h += `<div class="m${g.length ? " done" : ""}"><span class="muted">Round ${m.round} · court ${escapeHtml(m.court)}</span><br>` +
+        `${escapeHtml(m.a)}<br>vs ${escapeHtml(m.b)}<br><b>${g.length ? g.map(x => x.join("-")).join(", ") : '<span class="muted">not played</span>'}</b></div>`;
+    }
+  }
+  h += `<p class="muted"><a href="/results/${escapeHtml(id)}.json">Download these results (JSON)</a></p>`;
+  return page(d.name, h);
 }
 
 // ------------------------------------------------------------------ venues

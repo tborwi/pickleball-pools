@@ -86,11 +86,13 @@ public class MainActivity extends Activity {
     CaptainScreen captain;
     Receipts receipts;
     Venues venues;
+    Archive archive;
 
     @SuppressWarnings("deprecation")
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == Receipts.TAKE_PHOTO) { receipts.onPhoto(res == RESULT_OK); return; }
+        if (req == Archive.PICK_BACKUP) { if (res == RESULT_OK && data != null && data.getData() != null) archive.onBackup(data.getData()); return; }
         if (req == RegistrationsScreen.PICK_FILE && res == RESULT_OK && data != null && data.getData() != null) regs.onFile(data.getData());
     }
 
@@ -114,6 +116,7 @@ public class MainActivity extends Activity {
         captain = new CaptainScreen(this, live);
         receipts = new Receipts(this, account.api);
         venues = new Venues(this);
+        archive = new Archive(this);
         if (t == null) { key = Store.newKey(); t = clubDefaults(new Tournament()); Store.setCurrent(this, key); save(); }
         go(this::home, false);
         signInLink(getIntent());
@@ -226,6 +229,15 @@ public class MainActivity extends Activity {
         heading("More");
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
+        if (!t.round1.isEmpty() && archive.canPublish()) {
+            if (t.resultsId.isEmpty()) button("Publish results (Past tournaments page)", v -> archive.publish());
+            else {
+                button("Update the published results", v -> archive.publish());
+                smallButton("Published: " + archive.url(t.resultsId) + "  (share)", v -> archive.share(t.name, archive.url(t.resultsId), "Published results"));
+                smallButton("Remove the published results…", v -> archive.unpublish());
+            }
+        }
+        button("Back up this tournament (file)", v -> archive.exportBackup(t));
         button("Settings", v -> settings());
         button("Appearance: " + THEMES[themeSetting()], v -> chooseTheme());
         button("Help (how to use the app)", v -> startActivity(new Intent(Intent.ACTION_VIEW,
@@ -737,7 +749,7 @@ public class MainActivity extends Activity {
     void tournaments() {
         page.removeAllViews();
         title("Tournaments");
-        note("Tap one to open it. Press and hold to delete. Each keeps its own teams, pools and scores.");
+        note("Tap one to open it. Press and hold to back it up or delete it. Each keeps its own teams, pools and scores.");
         for (Object[] e : Store.all(this)) {
             String k = (String) e[0];
             Tournament x = (Tournament) e[1];
@@ -748,12 +760,17 @@ public class MainActivity extends Activity {
             if (open) v.setBackground(box(LIGHT));
             v.setOnClickListener(w -> openTournament(k, x));
             v.setOnLongClickListener(w -> {
-                if (open) { toast("Open another tournament first, then delete this one."); return true; }
-                confirm("Delete " + x.name + "?", "Its teams, pools and scores are erased from this phone. "
-                        + "Scores already sent to the server stay there.", () -> { Store.delete(this, k); refresh(); });
+                new AlertDialog.Builder(this).setTitle(x.name).setItems(new String[]{"Back up to a file", "Delete from this phone"}, (dlg, which) -> {
+                    if (which == 0) { archive.exportBackup(x); return; }
+                    if (open) { toast("Open another tournament first, then delete this one."); return; }
+                    confirm("Delete " + x.name + "?", "Its teams, pools and scores are erased from this phone. Back it up first if you may need it. "
+                            + "Scores sent to the server and published results stay there.", () -> { Store.delete(this, k); refresh(); });
+                }).show();
                 return true;
             });
         }
+        button("Import a backup file", v -> archive.pickBackup());
+        button("Past tournaments (web page)", v -> archive.pastPage(account.api.server() + "/results"));
         heading("New tournament");
         if (account.api.signedIn() && (account.api.has("admin") || account.api.has("director")))
             button("From a Zeffy registration…", v -> fromZeffy());

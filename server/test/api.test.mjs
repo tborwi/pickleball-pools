@@ -146,6 +146,31 @@ let club = await call("PUT", "/club", admin, { club: { name: "Heart of Wisconsin
 check(club.data.club.name === "Heart of Wisconsin PA" && club.data.club.winBy === "2", "admin saves club settings");
 check((await call("PUT", "/club", admin, { club: { winBy: "two" } })).status === 400 && (await call("PUT", "/club", admin, { club: { secret: "x" } })).status === 400, "bad or unknown settings refused");
 check((await call("GET", "/club", cap)).data.club.paymentLink === "https://pay.example/x", "staff read club settings");
+{ // Published results: directors publish, anyone reads; private fields never stored
+  const bad = { name: "Fall Classic", day: "Sat Nov 14, 2026", venue: "Plover", singles: false,
+    who: { "AB+CD": { email: ["secret@x.org"] } }, pools: [{ teams: [{ id: "AB+CD" }] }],
+    standings: [{ stage: "Round 1", title: "Pool A", rows: [{ place: "1", label: "Pat S. / Lee J.", w: 3, l: 0, diff: 12, email: "secret@x.org" }] }],
+    finalists: ["Pat S. / Lee J."],
+    matches: [{ key: "r1:A:AB+CD:EF+GH", court: 3, round: 1, stage: "Round 1", pool: "Pool A", a: "1  Pat S. / Lee J.", b: "2  Kim L. / Bo N.", aId: "AB+CD", bId: "EF+GH" }],
+    scores: { "r1:A:AB+CD:EF+GH": [[11, 5], [11, 9]] } };
+  check((await call("POST", "/results", cap, { results: bad })).status === 403, "captains can't publish results");
+  const pr = await call("POST", "/results", dir, { id: "fall-classic-2026", results: bad });
+  check(pr.status === 200 && pr.data.id === "fall-classic-2026", "director publishes results");
+  const pj = await call("GET", "/results/fall-classic-2026.json");
+  const txt = JSON.stringify(pj.data);
+  check(pj.status === 200 && pj.data.standings[0].rows[0].w === 3 && pj.data.scores["r1:A:AB+CD:EF+GH"][1][1] === 9, "results JSON public");
+  check(!txt.includes("secret@") && !txt.includes("aId") && !("who" in pj.data) && !("pools" in pj.data), "no private fields published");
+  const ph = await fetch(BASE + "/results/fall-classic-2026");
+  const html = await ph.text();
+  check(ph.status === 200 && html.includes("Fall Classic") && html.includes("11-5, 11-9") && html.includes("Download these results"), "results page HTML");
+  const ix = await (await fetch(BASE + "/results")).text();
+  check(ix.includes("/results/fall-classic-2026") && ix.includes("Sat Nov 14, 2026"), "past tournaments list");
+  const lj = await call("GET", "/results.json");
+  check(lj.data.results.length === 1 && lj.data.results[0].singles === false, "past tournaments JSON");
+  check((await call("POST", "/results", dir, { results: { name: "Empty" } })).status === 400, "nothing to publish refused");
+  await call("POST", "/results/remove", dir, { id: "fall-classic-2026" });
+  check((await fetch(BASE + "/results/fall-classic-2026")).status === 404, "unpublished");
+}
 { // Venues: admins edit, directors read; courts normalized
   check((await call("PUT", "/venues", dir, { venue: { name: "X", courts: "1" } })).status === 403, "only admins edit venues");
   check((await call("PUT", "/venues", admin, { venue: { name: "Bad", courts: "1-x" } })).status === 400, "bad courts refused");

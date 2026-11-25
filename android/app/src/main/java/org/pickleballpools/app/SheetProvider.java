@@ -47,7 +47,8 @@ public final class SheetProvider extends ContentProvider {
         return c;
     }
 
-    @Override public String getType(Uri u) { return photo(u) ? "image/jpeg" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; }
+    @Override public String getType(Uri u) { return photo(u) ? "image/jpeg" : String.valueOf(u.getLastPathSegment()).endsWith(".json") ? "application/json"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; }
     @Override public boolean onCreate() { return true; }
     @Override public Uri insert(Uri u, ContentValues v) { return null; }
     @Override public int delete(Uri u, String s, String[] a) { return 0; }

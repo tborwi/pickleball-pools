@@ -4,6 +4,21 @@ A small Cloudflare Worker with a D1 (SQLite) database: sign-in with Google or an
 (see [../ROLES.md](../ROLES.md)). Plain JavaScript, no runtime dependencies. Free on Cloudflare's free plan for a
 club-sized organization.
 
+## Public pages (no sign-in)
+
+| Address | What |
+|---|---|
+| `/t/<id>` | Live scores page of a running tournament (refreshes itself) |
+| `/public/<id>` | The same as JSON |
+| `/r/<token>` | One score sheet photo (the link in a player's email) |
+| `/results` | Past tournaments: every published tournament, newest first |
+| `/results/<id>` | One past tournament: standings, every score, the Finals |
+| `/results/<id>.json`, `/results.json` | The same as JSON (open to other websites) |
+
+Published results keep only short names, pools, scores and standings; the server drops any other field the phone
+sends, so emails, DUPR IDs and team ids are never published. Directors publish with `POST /results` and remove with
+`POST /results/remove`.
+
 ## Try it locally (Docker, nothing to install)
 
 `test/run.sh` starts it with a local database and a stand-in for Google, and runs every check.

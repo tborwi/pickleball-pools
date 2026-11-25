@@ -32,7 +32,8 @@ public final class Tournament {
     public String round1When = "", round2When = ""; // printed sheets, e.g. "Saturday 9:00am"
 
     public String date = "";          // e.g. "Sat Nov 14, 2026" (from the Zeffy campaign, or typed)
-    public String zeffyCampaign = "";  // Zeffy campaign id this tournament registers through
+    public String zeffyCampaign = "";
+    public String resultsId = "";     // id of the published results on the club server ("" = not published)  // Zeffy campaign id this tournament registers through
     public String paymentLink = "";  // the page players pay on (Stripe Payment Link, PayPal, Zeffy…), shared from the app
     public int[] importColumns;      // last column match used for a payment export (Registration.FIELDS order)
     public final List<Player> players = new ArrayList<>(); // paid registrations, one per player

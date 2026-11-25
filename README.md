@@ -35,6 +35,16 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    venues and their courts (e.g. `1-8, 10`) under Account → **Venues and courts**; "Somewhere else" types the courts
    by hand. Pools take courts in order; if a round needs more courts than the venue has, the app warns and pools share
    courts. Without a venue, courts are numbered from the first court in Settings. The venue locks at **Start**.
+10. **Several tournaments, backups.** **All tournaments** keeps any number of tournaments on the phone (switch, delete).
+    **Back up this tournament** shares the whole tournament as a `.json` file (private: it has emails and DUPR IDs);
+    **Import a backup file** opens it on any phone, for a new phone or another director taking over.
+11. **Past tournaments.** **Publish results** puts a public copy on the club server: first names with last initial,
+    pools, scores, standings and the Finals, never emails or DUPR IDs. Anyone can see them at `<server>/results`, each
+    tournament at `<server>/results/<id>`, also as JSON (`<server>/results/<id>.json`, `<server>/results.json`).
+12. **Singles.** A payment file with no "Partner DUPR ID" column makes the tournament singles (one player per entry);
+    or tick **Singles** in Settings before adding players.
+
+The user guide for directors and captains: **https://tborwi.github.io/pickleball-pools/** (`docs/index.html`).
 
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
 points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it or sign in.
@@ -121,7 +131,10 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `branding/` | Logo and app name, swapped in at build time |
 | `app/AccountScreen.java`, `Api.java` | Sign-in, my details, people and roles, court captains (optional server) |
 | `server/` | The accounts server (Cloudflare Worker + D1), with its own tests |
-| `app/Store.java` | Saves everything to one JSON file on the device |
+| `app/Store.java` | Saves each tournament as its own JSON file on the device |
+| `app/Archive.java` | Backup files (export/import) and published results |
+| `app/Venues.java` | Venues and their courts |
+| `docs/index.html` | The user guide (GitHub Pages) |
 
 `core/` is plain Java with no Android code, so the rules can be tested and reused (for example in a web version).
 
