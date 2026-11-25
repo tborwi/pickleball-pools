@@ -120,6 +120,9 @@ public class MainActivity extends Activity {
         if (t == null) { key = Store.newKey(); t = clubDefaults(new Tournament()); Store.setCurrent(this, key); save(); }
         go(this::home, false);
         signInLink(getIntent());
+        if (android.os.Build.VERSION.SDK_INT >= 33) // Android 13+: the system Back gesture (required from Android 16)
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    () -> { if (back.isEmpty()) moveTaskToBack(true); else goBack(); });
     }
 
     @Override protected void onResume() {
@@ -144,10 +147,12 @@ public class MainActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
-    @Override public void onBackPressed() {
+    @Override public void onBackPressed() { // Android 12 and older; newer ones use the callback in onCreate
         if (back.isEmpty()) super.onBackPressed();
-        else { live.extra = null; current = back.pop(); current.run(); }
+        else goBack();
     }
+
+    void goBack() { live.extra = null; current = back.pop(); current.run(); }
 
     void go(Runnable screen, boolean remember) {
         if (remember && current != null) back.push(current);
@@ -242,6 +247,8 @@ public class MainActivity extends Activity {
         button("Appearance: " + THEMES[themeSetting()], v -> chooseTheme());
         button("Help (how to use the app)", v -> startActivity(new Intent(Intent.ACTION_VIEW,
                 android.net.Uri.parse("https://tborwi.github.io/pickleball-pools/"))));
+        smallButton("Privacy policy", v -> startActivity(new Intent(Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://tborwi.github.io/pickleball-pools/privacy.html"))));
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("All tournaments (new, switch)", v -> go(this::tournaments, true));

@@ -36,6 +36,7 @@ async function route(req, env) {
   if (p === "/auth/google/callback" && m === "GET") return googleCallback(env, url);
   if (p === "/auth/exchange" && m === "POST") return exchange(req, env);
   // Public, no sign-in: players don't have accounts. Links are long random ids, shared by the director or emailed.
+  if (p === "/account/delete" && m === "GET") return new Response(DELETE_HTML, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   if ((p === "/results" || p === "/results.json") && m === "GET") return resultsIndex(env, p.endsWith(".json"));
   const rs = p.match(/^\/results\/([\w-]{1,64})(\.json)?$/);
   if (rs && m === "GET") return resultsPage(env, rs[1], !!rs[2]);
@@ -49,6 +50,7 @@ async function route(req, env) {
   }
   if (p === "/me" && m === "GET") return json(await profile(env, me));
   if (p === "/me" && (m === "PATCH" || m === "POST")) return updateMe(req, env, me);
+  if (p === "/me/delete" && m === "POST") return deleteMe(env, me);
 
   if (p === "/admin/users" && m === "GET") { need(me, "admin"); return listUsers(env); }
   if (p === "/admin/roles" && m === "PUT") { need(me, "admin"); return grantRole(req, env, me); }
@@ -624,6 +626,31 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+const DELETE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Delete your account</title>
+<style>:root{--bg:#fff;--fg:#111;--muted:#555;--accent:#1b5e20;--bad:#b71c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#121412;--fg:#eee;--muted:#aaa;--accent:#81c784;--bad:#ef9a9a}}
+body{margin:0;background:var(--bg);color:var(--fg);font:19px/1.5 system-ui,sans-serif}main{max-width:620px;margin:0 auto;padding:16px}
+h1{color:var(--accent);font-size:26px}input,button{font:inherit;padding:10px 12px;margin:6px 0;width:100%;box-sizing:border-box}
+button{background:var(--accent);color:var(--bg);border:0;border-radius:8px}button.bad{background:var(--bad)}.muted{color:var(--muted)}
+[hidden]{display:none}</style></head><body><main>
+<h1>Delete your Pickleball Pools account</h1>
+<p>This is for tournament staff (directors, court captains, admins). Players have no account.</p>
+<p>Deleting removes your name, phone, roles and court captain places, and signs you out everywhere. Scores you entered and
+the tournament history stay with the tournament's record. You can also do this in the app: Account &rarr; Delete my account.</p>
+<div id="s1"><label>Your email<input id="em" type="email" autocomplete="email"></label><button id="b1">Email me a code</button></div>
+<div id="s2" hidden><label>6-digit code from the email<input id="cd" inputmode="numeric" maxlength="6"></label>
+<button id="b2" class="bad">Delete my account</button></div>
+<p id="msg" class="muted"></p>
+<script>
+const $=id=>document.getElementById(id),say=t=>$("msg").textContent=t;
+async function post(u,b,tok){const r=await fetch(u,{method:"POST",headers:Object.assign({"Content-Type":"application/json"},tok?{Authorization:"Bearer "+tok}:{}),body:JSON.stringify(b||{})});
+const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Something went wrong.");return d;}
+$("b1").onclick=async()=>{try{await post("/auth/email/start",{email:$("em").value.trim()});$("s2").hidden=false;say("Check your email (and the junk folder) for the code.");}catch(e){say(e.message)}};
+$("b2").onclick=async()=>{if(!confirm("Delete your account for good?"))return;try{const v=await post("/auth/email/verify",{email:$("em").value.trim(),code:$("cd").value.trim()});
+await post("/me/delete",{},v.token);$("s1").hidden=true;$("s2").hidden=true;say("Your account is deleted.");}catch(e){say(e.message)}};
+</script></main></body></html>`;
+
 const RESULTS_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__</title>
 <style>
@@ -692,6 +719,23 @@ async function getImage(env, tid, rid) {
   const row = await env.DB.prepare("SELECT data FROM receipt_images WHERE id = ?").bind(rid).first();
   if (!row) throw new Http(404, "Photo missing.");
   return new Uint8Array(row.data);
+}
+
+// ------------------------------------------------------------------ account deletion (Google Play policy)
+// Deletes the person's account: profile, roles, tournament staff places, sessions and sign-in codes. Kept: scores they
+// entered and the tournament history (who changed what), which belong to the tournament's record.
+async function deleteMe(env, me) {
+  const email = me.email;
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(me.id),
+    env.DB.prepare("DELETE FROM handoffs WHERE user_id = ?").bind(me.id),
+    env.DB.prepare("DELETE FROM roles WHERE email = ?").bind(email),
+    env.DB.prepare("DELETE FROM staff WHERE email = ?").bind(email),
+    env.DB.prepare("DELETE FROM email_codes WHERE email = ?").bind(email),
+    env.DB.prepare("DELETE FROM users WHERE id = ?").bind(me.id),
+  ]);
+  await audit(env, "", "(deleted account)", "account", "", { change: "deleted" });
+  return json({ ok: true });
 }
 
 // ------------------------------------------------------------------ published results (public archive)

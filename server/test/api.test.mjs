@@ -146,6 +146,16 @@ let club = await call("PUT", "/club", admin, { club: { name: "Heart of Wisconsin
 check(club.data.club.name === "Heart of Wisconsin PA" && club.data.club.winBy === "2", "admin saves club settings");
 check((await call("PUT", "/club", admin, { club: { winBy: "two" } })).status === 400 && (await call("PUT", "/club", admin, { club: { secret: "x" } })).status === 400, "bad or unknown settings refused");
 check((await call("GET", "/club", cap)).data.club.paymentLink === "https://pay.example/x", "staff read club settings");
+{ // Account deletion: removes the user, roles and sessions; the web page exists
+  const gone = await emailSignIn("leaving@example.com");
+  await call("PUT", "/admin/roles", admin, { email: "leaving@example.com", role: "director" });
+  check((await call("POST", "/me/delete", gone)).status === 200, "delete my account");
+  check((await call("GET", "/me", gone)).status === 401, "deleted account's session is gone");
+  const users = await call("GET", "/admin/users", admin);
+  check(!JSON.stringify(users.data).includes("leaving@example.com"), "deleted account and its roles are gone");
+  const dp = await fetch(BASE + "/account/delete");
+  check(dp.status === 200 && (await dp.text()).includes("Delete your Pickleball Pools account"), "account deletion web page");
+}
 { // Published results: directors publish, anyone reads; private fields never stored
   const bad = { name: "Fall Classic", day: "Sat Nov 14, 2026", venue: "Plover", singles: false,
     who: { "AB+CD": { email: ["secret@x.org"] } }, pools: [{ teams: [{ id: "AB+CD" }] }],

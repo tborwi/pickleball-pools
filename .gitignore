@@ -11,3 +11,4 @@ android/keystore.properties
 homelab/
 android/app/src/main/assets/practice-players.txt
 branding/branding.local.properties
+*.aab

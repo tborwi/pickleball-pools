@@ -45,6 +45,7 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
     or tick **Singles** in Settings before adding players.
 
 The user guide for directors and captains: **https://tborwi.github.io/pickleball-pools/** (`docs/index.html`).
+Privacy policy: `docs/privacy.html`. Google Play: `play/README.md` (`android/build.sh play` builds the upload bundle).
 
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
 points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it or sign in.

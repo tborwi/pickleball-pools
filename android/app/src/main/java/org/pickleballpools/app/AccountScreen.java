@@ -74,6 +74,14 @@ final class AccountScreen {
             api.signOutLocally();
             a.refresh();
         }));
+        a.smallButton("Delete my account…", v -> a.confirm("Delete your account?",
+                "Removes your name, phone, roles and court captain places from the club's server, and signs you out. "
+                        + "Scores you entered and the tournament history stay with the tournament. Tournaments on this phone are not touched.",
+                () -> api.call("POST", "/me/delete", new JSONObject(), r -> {
+                    api.signOutLocally();
+                    a.toast("Your account is deleted.");
+                    a.refresh();
+                })));
         a.smallButton("Server: " + api.server(), v -> server());
         refreshMe();
     }

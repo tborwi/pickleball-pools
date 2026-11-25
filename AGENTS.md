@@ -16,3 +16,8 @@
 `docs/index.html` is the user guide, published by GitHub Pages at https://tborwi.github.io/pickleball-pools/ (the app's
 **Help** button opens it). Its readers are retired tournament volunteers: short, plain, no jargon. Update it in the same
 change as any button name or workflow change.
+
+## Google Play
+`play/README.md` holds the release steps, store listing, and the Data safety and App content answers. If a change
+collects new data, uses a new permission or adds a service, update `play/README.md` and `docs/privacy.html` with it.
+Play builds: `android/build.sh play` (target API must stay within a year of the newest Android).

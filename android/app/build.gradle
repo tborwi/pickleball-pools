@@ -20,10 +20,10 @@ preBuild.dependsOn copyBranding
 
 android {
     namespace 'org.pickleballpools.app'
-    compileSdk 35
-    buildToolsVersion '35.0.0'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
     sourceSets { main { res.srcDirs += generatedRes.get().asFile } }
-    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 26; versionName '1.25.0'
+    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 36; versionCode 27; versionName '1.26.0'
         resValue 'string', 'app_name', branding.getProperty('appName', 'Pickleball Pools')
         resValue 'color', 'icon_background', branding.getProperty('iconBackground', '#FFFFFF')
         resValue 'string', 'default_server', branding.getProperty('serverUrl', '') }
@@ -32,5 +32,9 @@ android {
         keyAlias keystoreProps['keyAlias']; keyPassword keystoreProps['keyPassword'] } } }
     buildTypes { release { minifyEnabled false
         signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug } }
+    // Google Play builds (./build.sh play) leave out a club's private practice roster (assets/practice-players.txt)
+    if (project.hasProperty('play')) androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!practice-players.txt'
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
