@@ -11,3 +11,8 @@
   when reading, so older saved tournaments still open.
 - Build with `android/build.sh` (Docker) or Android Studio. Bump `versionCode` and `versionName` for every release.
 - Never commit signing keys or `keystore.properties`.
+
+## User guide
+`docs/index.html` is the user guide, published by GitHub Pages at https://tborwi.github.io/pickleball-pools/ (the app's
+**Help** button opens it). Its readers are retired tournament volunteers: short, plain, no jargon. Update it in the same
+change as any button name or workflow change.
