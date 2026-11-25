@@ -12,7 +12,8 @@ club-sized organization.
 
 1. `npm install`, then `npx wrangler login`.
 2. `npx wrangler d1 create pp`, and copy the `database_id` it prints into `wrangler.toml`.
-3. `npx wrangler d1 execute pp --remote --file schema.sql`
+3. `npx wrangler d1 execute pp --remote --file schema.sql` and `npx wrangler r2 bucket create pp-receipts` (score sheet photos;
+   free up to 10 GB, roughly 30,000 photos)
 4. In `wrangler.toml` set `ADMIN_EMAIL` (the first admin) and `ORG_NAME`.
 5. **Email codes:** make a free [Resend](https://resend.com) account, verify your domain, then
    `npx wrangler secret put RESEND_API_KEY` and `npx wrangler secret put MAIL_FROM` (e.g. `HOWPA <noreply@yourclub.org>`).

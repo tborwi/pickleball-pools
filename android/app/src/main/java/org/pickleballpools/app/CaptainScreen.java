@@ -68,12 +68,32 @@ final class CaptainScreen {
                     + m.optString("b") + "\n   " + (games.isEmpty() ? "not played yet" : text(games)) + (q.has(key) ? "  (sending…)" : "");
             TextView row = a.text(txt, 18, false, Color.BLACK);
             a.card(row).setBackground(a.box(games.isEmpty() ? 0xFFFFF8E1 : MainActivity.LIGHT));
-            row.setOnClickListener(v -> a.scoreDialog(m.optString("a"), m.optString("b"), games,
+            JSONArray rc = receipts(s, key);
+            if (rc.length() > 0) row.append("\n   📷 score sheet photo sent");
+            Runnable photo = () -> a.receipts.take(id, key);
+            Runnable enter = () -> a.scoreDialog(m.optString("a"), m.optString("b"), games,
                     data.optInt("pointsToWin", 11), data.optInt("winBy", 2), null, entered -> {
                         live.send(id, key, entered);
                         a.refresh();
-                    }));
+                        if (!entered.isEmpty()) a.confirm("Take a photo of the score sheet?",
+                                "A picture of the paper sheet with your initials, as the receipt for this match.", photo);
+                    });
+            row.setOnClickListener(v -> {
+                if (games.isEmpty() && rc.length() == 0) { enter.run(); return; }
+                String[] opts = rc.length() > 0
+                        ? new String[]{"Enter or change the score", "📷 Take another photo", "See the photo"}
+                        : new String[]{"Enter or change the score", "📷 Take a photo of the score sheet"};
+                new android.app.AlertDialog.Builder(a).setTitle(m.optString("a") + "  vs  " + m.optString("b"))
+                        .setItems(opts, (d, w) -> {
+                            if (w == 0) enter.run();
+                            else if (w == 1) photo.run();
+                            else a.receipts.view(id, rc.optJSONObject(rc.length() - 1).optString("id"), "Score sheet, court " + m.optString("court"));
+                        }).show();
+            });
         }
+        int photos = a.receipts.waiting();
+        if (photos > 0) a.text(photos + " photo" + (photos == 1 ? "" : "s") + " waiting for signal; will send by itself.", 16, true, MainActivity.RED);
+        a.button("📊 All live scores", v -> a.liveScreen.open(id, name));
         a.smallButton("Refresh now", v -> fetch());
         if (s.length() > 0 && lastSeq == 0) fetch();
     }
@@ -86,6 +106,7 @@ final class CaptainScreen {
                 JSONObject s = new JSONObject();
                 s.put("data", r.opt("data"));
                 s.put("courts", r.opt("courts"));
+                s.put("receipts", r.opt("receipts"));
                 JSONObject sc = new JSONObject();
                 JSONArray arr = r.optJSONArray("scores");
                 for (int i = 0; arr != null && i < arr.length(); i++) sc.put(arr.optJSONObject(i).optString("key"), arr.optJSONObject(i).optJSONArray("games"));
@@ -96,6 +117,12 @@ final class CaptainScreen {
                 if (changed && tid.equals(id) && live.extra != null) a.refresh();
             } catch (Exception ignored) {}
         }, (net, msg) -> { if (!net) a.toast(msg); });
+    }
+
+    static JSONArray receipts(JSONObject s, String key) {
+        JSONArray out = new JSONArray(), all = s.optJSONArray("receipts");
+        for (int i = 0; all != null && i < all.length(); i++) if (key.equals(all.optJSONObject(i).optString("key"))) out.put(all.optJSONObject(i));
+        return out;
     }
 
     static String text(List<int[]> games) {

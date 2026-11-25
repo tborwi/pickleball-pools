@@ -61,8 +61,9 @@ check((await call("GET", "/admin/users", cap)).status === 403, "captain can't li
 
 // Live scoring
 const live = { pointsToWin: 11, winBy: 2, matches: [
-  { key: "r1:A:t1:t4", court: 7, round: 1, pool: "Pool A", a: "1 Ortiz/Moore", b: "4 Ba/Bruckbauer" },
-  { key: "r1:A:t2:t3", court: 9, round: 1, pool: "Pool A", a: "2 Demski/Weisbrot", b: "3 Lohman/Zygarlicke" }] };
+  { key: "r1:A:t1:t4", court: 7, round: 1, pool: "Pool A", aId: "t1", bId: "t4", a: "1 Ortiz/Moore", b: "4 Ba/Bruckbauer" },
+  { key: "r1:A:t2:t3", court: 9, round: 1, pool: "Pool A", aId: "t2", bId: "t3", a: "2 Demski/Weisbrot", b: "3 Lohman/Zygarlicke" }],
+  who: { t1: { email: ["player1@example.com"], dupr: ["AAA111"] }, t2: { email: [], dupr: ["BBB222"] } } };
 check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t1:t4", games: [[11, 5], [11, 9]] })).status === 400, "no scores before pools are published");
 check((await call("PUT", `/tournaments/${tid}/live`, cap, { data: live })).status === 403, "captain can't publish pools");
 check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).status === 200, "director publishes pools");
@@ -83,6 +84,47 @@ check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).statu
   && (await call("GET", `/tournaments/${tid}/live`, dir)).data.scores.length === 2, "republishing keeps scores");
 check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t2:t3", games: [] })).status === 200, "a score can be cleared");
 
+// Photo receipts, player view, audit
+const jpeg = new Uint8Array(2000); jpeg[0] = 0xff; jpeg[1] = 0xd8; jpeg[2] = 0xff;
+async function upload(token, key, bytes, type = "image/jpeg") {
+  const r = await fetch(`${BASE}/tournaments/${tid}/receipts?key=${encodeURIComponent(key)}`,
+    { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": type }, body: bytes });
+  return { status: r.status, data: await r.json() };
+}
+const rc = await upload(cap, "r1:A:t1:t4", jpeg);
+check(rc.status === 201, "captain uploads a photo receipt for a court 7 match");
+check((await upload(cap, "r1:A:t2:t3", jpeg)).status === 403, "captain can't add a receipt for court 9");
+check((await upload(cap, "r1:A:t1:t4", new Uint8Array(2000), "image/jpeg")).status === 400, "non-JPEG refused");
+lv = await call("GET", `/tournaments/${tid}/live`, cap);
+check(!lv.data.data.who && lv.data.receipts.length === 1, "captain sees the receipt, not players' emails/DUPR IDs");
+check((await call("GET", `/tournaments/${tid}/live?view=all`, cap)).data.data.matches.length === 2, "captain can view all live scores");
+
+const p1 = await emailSignIn("player1@example.com");
+const myT = (await call("GET", "/tournaments", p1)).data.tournaments;
+check(myT.length === 1 && myT[0].playing, "player finds the tournament they play in (by email)");
+lv = await call("GET", `/tournaments/${tid}/live`, p1);
+check(lv.data.view === "player" && lv.data.data.matches.length === 2 && !lv.data.data.who, "player sees every match, no private data");
+check(lv.data.scores.length >= 1 && lv.data.receipts.length === 1 && lv.data.myTeams[0] === "t1", "player sees live scores and their match's receipt");
+const img = await fetch(`${BASE}/tournaments/${tid}/receipts/${rc.data.id}`, { headers: { Authorization: "Bearer " + p1 } });
+check(img.status === 200 && img.headers.get("content-type") === "image/jpeg" && (await img.arrayBuffer()).byteLength === 2000, "player opens the receipt photo");
+check((await call("POST", `/tournaments/${tid}/scores`, p1, { key: "r1:A:t1:t4", games: [[11, 1], [11, 1]] })).status === 403, "player can't enter scores");
+
+const p2 = await emailSignIn("player2@example.com");
+check((await call("GET", `/tournaments/${tid}/live`, p2)).status === 403, "someone not playing can't see the tournament");
+await call("POST", "/me", p2, { duprId: "bbb222" });
+lv = await call("GET", `/tournaments/${tid}/live`, p2);
+check(lv.status === 200 && lv.data.receipts.length === 0, "player matched by DUPR ID sees scores but not other matches' receipts");
+check((await fetch(`${BASE}/tournaments/${tid}/receipts/${rc.data.id}`, { headers: { Authorization: "Bearer " + p2 } })).status === 403, "player can't open another match's receipt");
+
+check((await call("POST", `/tournaments/${tid}/events`, dir, { action: "started" })).status === 200, "director logs Start");
+const au = await call("GET", `/tournaments/${tid}/audit`, dir);
+const acts = au.data.entries.map(e => e.action);
+const sc1 = au.data.entries.find(e => e.action === "score" && e.key === "r1:A:t2:t3" && e.detail.new.length === 0);
+check(["started", "receipt", "score", "publish", "staff"].every(x => acts.includes(x)), "audit has start, receipt, score, publish, staff");
+check(sc1 && sc1.detail.old.length === 2 && sc1.email === "dir@example.com", "audit keeps the old score and who changed it");
+check((await call("GET", `/tournaments/${tid}/audit`, cap)).status === 403, "captains can't read the audit log");
+check((await call("GET", "/admin/audit", admin)).data.entries.some(e => e.action === "role"), "admin sees role changes in the audit log");
+
 const cash = await emailSignIn("cash@example.com");
 check((await call("GET", `/tournaments/${tid}/live`, cash)).status === 403, "treasurer isn't staff of this tournament (no live scores)");
 me = await call("GET", "/me", cash);
@@ -91,13 +133,13 @@ check((await call("GET", "/tournaments", cash)).data.tournaments.length === 1, "
 check((await call("POST", "/tournaments", cash, { name: "Y" })).status === 403, "treasurer can't create a tournament");
 
 const users = await call("GET", "/admin/users", admin);
-check(users.data.users.length === 4, "admin lists 4 users");
+check(users.data.users.length === 6, "admin lists 6 users");
 check((await call("DELETE", "/admin/roles", admin, { email: "admin@example.com", role: "admin" })).status === 400, "can't remove the last admin");
 check((await call("POST", `/tournaments/${tid}/staff/remove`, dir, { email: "dir@example.com", role: "director" })).status === 400, "tournament keeps a director");
 
 check((await call("PUT", "/admin/roles", admin, { email: "temp@example.com", role: "treasurer" })).status === 200
   && (await call("POST", "/admin/roles/remove", admin, { email: "temp@example.com", role: "treasurer" })).status === 200
-  && (await call("GET", "/admin/users", admin)).data.users.length === 4, "admin removes a role (POST /remove)");
+  && (await call("GET", "/admin/users", admin)).data.users.length === 6, "admin removes a role (POST /remove)");
 
 const p = await call("PATCH", "/me", cap, { duprId: "l8ew8w", phone: "715-555-0100", marketing: true });
 check(p.data.duprId === "L8EW8W" && p.data.marketing === true, "player updates DUPR ID and marketing opt-in");

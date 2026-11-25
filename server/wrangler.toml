@@ -16,3 +16,8 @@ ORG_NAME = "Pickleball Pools"
 # The first admin (recommended). Without it, the first person to sign in becomes admin.
 ADMIN_EMAIL = ""
 # Set with `wrangler secret put`: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, RESEND_API_KEY, MAIL_FROM
+
+# Photo receipts (score sheet pictures). Create once: npx wrangler r2 bucket create pp-receipts
+[[r2_buckets]]
+binding = "RECEIPTS"
+bucket_name = "pp-receipts"

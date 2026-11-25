@@ -73,6 +73,46 @@ final class AccountScreen {
         refreshMe();
     }
 
+    /** Tournaments this person plays in (from the last refresh). */
+    JSONArray playing() {
+        try { return new JSONArray(a.getSharedPreferences("account", 0).getString("playing", "[]")); } catch (Exception e) { return new JSONArray(); }
+    }
+
+    /** The audit log of the online tournament: every score change (old and new), photo, publish, staff change. */
+    void history() {
+        a.page.removeAllViews();
+        a.title("History");
+        a.note(a.t.name + ": newest first. Every change on the server is recorded with who made it.");
+        api.call("GET", "/tournaments/" + a.t.serverId + "/audit", null, r -> {
+            JSONArray es = r.optJSONArray("entries");
+            java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("EEE h:mm a", java.util.Locale.US);
+            for (int i = 0; es != null && i < es.length(); i++) {
+                JSONObject e = es.optJSONObject(i), d = e.optJSONObject("detail");
+                if (d == null) d = new JSONObject();
+                String when = f.format(new java.util.Date(e.optLong("at") * 1000)), what;
+                switch (e.optString("action")) {
+                    case "score": {
+                        String old = CaptainScreen.text(Live.games(d.optJSONArray("old"))), now = CaptainScreen.text(Live.games(d.optJSONArray("new")));
+                        what = "Score, court " + d.optString("court") + ": " + d.optString("a") + " vs " + d.optString("b") + "\n"
+                                + (old.isEmpty() ? "entered " + now : now.isEmpty() ? "cleared (was " + old + ")" : "changed " + old + "  →  " + now);
+                        break;
+                    }
+                    case "receipt": what = "📷 Score sheet photo, court " + d.optString("court") + ": " + d.optString("a") + " vs " + d.optString("b") + " (tap to see)"; break;
+                    case "publish": what = "Pools sent to captains (" + d.optInt("matches") + " matches)"; break;
+                    case "staff": what = ("removed".equals(d.optString("change")) ? "Removed " : "Set ") + label(d.optString("role")).toLowerCase(java.util.Locale.US)
+                            + " " + d.optString("email") + (d.optString("courts").isEmpty() ? "" : ", courts " + d.optString("courts")); break;
+                    case "started": what = "▶ Tournament started (pools locked)"; break;
+                    case "unlocked": what = "🔓 Pools unlocked"; break;
+                    default: what = e.optString("action");
+                }
+                android.widget.TextView v = a.card(a.text(when + " · " + e.optString("email") + "\n" + what, 16, false, android.graphics.Color.BLACK));
+                String rid = d.optString("receipt");
+                if (!rid.isEmpty()) v.setOnClickListener(x -> a.receipts.view(a.t.serverId, rid, "Score sheet photo"));
+            }
+            if (es == null || es.length() == 0) a.note("Nothing yet.");
+        });
+    }
+
     /** Fetches the latest profile and redraws if it changed (roles given since the last visit). */
     void refreshMe() {
         String before = api.me().toString();
@@ -80,6 +120,13 @@ final class AccountScreen {
         api.call("GET", "/me", null, r -> {
             api.setMe(r);
             if (!r.toString().equals(before)) a.refresh();
+        }, (net, msg) -> {});
+        api.call("GET", "/tournaments", null, r -> {
+            JSONArray out = new JSONArray(), ts = r.optJSONArray("tournaments");
+            for (int i = 0; ts != null && i < ts.length(); i++) if (ts.optJSONObject(i).optBoolean("playing")) out.put(ts.optJSONObject(i));
+            String old = a.getSharedPreferences("account", 0).getString("playing", "[]");
+            a.getSharedPreferences("account", 0).edit().putString("playing", out.toString()).apply();
+            if (!old.equals(out.toString())) a.refresh();
         }, (net, msg) -> {});
     }
 

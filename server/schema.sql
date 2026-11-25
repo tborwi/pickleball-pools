@@ -73,3 +73,24 @@ CREATE TABLE IF NOT EXISTS scores (
   updated INTEGER NOT NULL,
   PRIMARY KEY (tournament_id, match_key)
 );
+-- Audit: who changed what and when (scores with old and new values, pools published, staff and roles, start/unlock, receipts).
+CREATE TABLE IF NOT EXISTS audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id TEXT NOT NULL,         -- '' for organization-wide changes (roles)
+  at INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  action TEXT NOT NULL,                -- score, receipt, publish, staff, role, started, unlocked
+  match_key TEXT NOT NULL DEFAULT '',
+  detail TEXT NOT NULL DEFAULT ''      -- JSON
+);
+CREATE INDEX IF NOT EXISTS audit_t ON audit (tournament_id, id);
+-- Photo receipts: a court captain's picture of the paper score sheet (with initials). The image is in R2.
+CREATE TABLE IF NOT EXISTS receipts (
+  id TEXT PRIMARY KEY,
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  match_key TEXT NOT NULL,
+  entered_by TEXT NOT NULL,
+  created INTEGER NOT NULL,
+  size INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS receipts_t ON receipts (tournament_id, match_key);

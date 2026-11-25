@@ -98,6 +98,64 @@ final class Api {
         }).start();
     }
 
+    interface Bytes { void ok(byte[] b); }
+
+    /** Downloads a file (a receipt photo). */
+    void getBytes(String path, Bytes ok, Failed fail) {
+        raw("GET", path, null, null, b -> ok.ok(b), fail);
+    }
+
+    /** Uploads a JPEG photo; ok gets the server's JSON answer. */
+    void postJpeg(String path, byte[] jpeg, Done ok, Failed fail) {
+        raw("POST", path, jpeg, "image/jpeg", b -> {
+            try { ok.ok(new JSONObject(new String(b, StandardCharsets.UTF_8))); } catch (Exception e) { ok.ok(new JSONObject()); }
+        }, fail);
+    }
+
+    private void raw(String method, String path, byte[] body, String type, Bytes ok, Failed fail) {
+        if (server().isEmpty()) { fail.failed(false, "Set the server address first (Account → Server)."); return; }
+        String token = prefs.getString("token", "");
+        new Thread(() -> {
+            String err;
+            boolean network = false;
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(server() + path).openConnection();
+                c.setConnectTimeout(15000);
+                c.setReadTimeout(60000);
+                c.setRequestMethod(method);
+                if (!token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
+                if (body != null) {
+                    c.setDoOutput(true);
+                    c.setRequestProperty("Content-Type", type);
+                    c.setFixedLengthStreamingMode(body.length);
+                    try (OutputStream os = c.getOutputStream()) { os.write(body); }
+                }
+                int code = c.getResponseCode();
+                if (code < 400) {
+                    byte[] b = readBytes(c.getInputStream());
+                    a.runOnUiThread(() -> ok.ok(b));
+                    return;
+                }
+                if (code == 401) signOutLocally();
+                err = new JSONObject(read(c.getErrorStream())).optString("error", "Server error " + code);
+            } catch (Exception e) {
+                err = "Couldn't reach the server. Check the internet connection.";
+                network = true;
+            }
+            String msg = err;
+            boolean net = network;
+            a.runOnUiThread(() -> fail.failed(net, msg));
+        }).start();
+    }
+
+    private static byte[] readBytes(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        for (int n; (n = in.read(buf)) > 0; ) b.write(buf, 0, n);
+        in.close();
+        return b.toByteArray();
+    }
+
     private static String read(InputStream in) throws java.io.IOException {
         if (in == null) return "{}";
         ByteArrayOutputStream b = new ByteArrayOutputStream();

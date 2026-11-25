@@ -70,6 +70,7 @@ final class Live {
             busy = true;
             flush(() -> publish(() -> pull(() -> busy = false)));
         } else flush(() -> {});
+        a.receipts.flush();
         if (extra != null) extra.run();
     }
 
@@ -87,6 +88,7 @@ final class Live {
                 for (Pool p : round) for (Match m : p.matches) {
                     if (p.voided.contains(m.a) || p.voided.contains(m.b)) continue;
                     ms.put(new JSONObject().put("key", t.matchKey(p, m)).put("court", court.get(m))
+                            .put("aId", m.a).put("bId", m.b)
                             .put("round", m.round).put("stage", round == t.round2 ? "Round 2" : "Round 1")
                             .put("pool", p.title())
                             .put("a", (p.teamIds.indexOf(m.a) + 1) + "  " + ids.get(m.a).label())
@@ -94,8 +96,38 @@ final class Live {
                 }
             }
             d.put("matches", ms);
+            // Pools (for players' standings) and who plays on each team (only the server and directors see "who")
+            JSONArray pools = new JSONArray();
+            JSONObject who = new JSONObject();
+            for (List<Pool> round : List.of(t.round1, t.round2))
+                for (Pool p : round) {
+                    JSONArray teams = new JSONArray();
+                    for (String tid : p.teamIds) {
+                        Team x = ids.get(tid);
+                        teams.put(new JSONObject().put("id", tid).put("label", x.label())
+                                .put("dupr", x.combined()).put("withdrawn", p.voided.contains(tid)));
+                        if (!who.has(tid)) who.put(tid, identities(x));
+                    }
+                    pools.put(new JSONObject().put("stage", round == t.round2 ? "Round 2" : "Round 1").put("title", p.title())
+                            .put("name", p.name).put("teams", teams));
+                }
+            d.put("pools", pools).put("who", who);
         } catch (Exception ignored) {}
         return d;
+    }
+
+    /** DUPR IDs (from registrations) and emails of a team's players, so players can find their own matches. */
+    JSONObject identities(Team x) throws org.json.JSONException {
+        JSONArray dupr = new JSONArray(), email = new JSONArray();
+        if (x.regKey != null && !x.regKey.isEmpty())
+            for (String id : x.regKey.split("\\+")) {
+                if (id.isEmpty()) continue;
+                dupr.put(id);
+                for (org.pickleballpools.core.Player pl : a.t.players)
+                    if (org.pickleballpools.core.Player.normId(pl.duprId).equals(org.pickleballpools.core.Player.normId(id))
+                            && pl.email != null && !pl.email.isBlank()) email.put(pl.email.trim().toLowerCase(java.util.Locale.ROOT));
+            }
+        return new JSONObject().put("dupr", dupr).put("email", email);
     }
 
     /** Sends the pools when they changed since the last time (new pools, redo, withdrawal, rename...). */
@@ -130,6 +162,7 @@ final class Live {
                 changed++;
             }
             t.liveSeq = Math.max(t.liveSeq, r.optLong("seq"));
+            receiptCounts(r.optJSONArray("receipts"));
             a.save();
             if (changed > 0) {
                 a.toast(changed == 1 ? "1 new score from a court captain" : changed + " new scores from court captains");
@@ -137,6 +170,32 @@ final class Live {
             }
             then.run();
         }, (net, msg) -> then.run());
+    }
+
+    /** Photo receipts per match key, for the director's pool screen. */
+    void receiptCounts(JSONArray rs) {
+        if (rs == null) return;
+        JSONObject byKey = new JSONObject();
+        try {
+            for (int i = 0; i < rs.length(); i++) {
+                JSONObject x = rs.optJSONObject(i);
+                JSONArray l = byKey.optJSONArray(x.optString("key"));
+                if (l == null) byKey.put(x.optString("key"), l = new JSONArray());
+                l.put(x.optString("id"));
+            }
+        } catch (Exception ignored) {}
+        prefs.edit().putString("receipts:" + a.t.serverId, byKey.toString()).apply();
+    }
+
+    JSONArray receiptsFor(String key) {
+        try { return new JSONObject(prefs.getString("receipts:" + a.t.serverId, "{}")).optJSONArray(key); } catch (Exception e) { return null; }
+    }
+
+    /** Tells the server's audit log about Start / Unlock (only this phone knows). */
+    void event(String action) {
+        if (!directing()) return;
+        try { api.call("POST", "/tournaments/" + a.t.serverId + "/events", new JSONObject().put("action", action), r -> {}, (n, m) -> {}); }
+        catch (Exception ignored) {}
     }
 
     Match find(String key) {

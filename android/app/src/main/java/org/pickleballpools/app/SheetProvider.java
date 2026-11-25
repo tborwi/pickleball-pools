@@ -12,20 +12,32 @@ import android.provider.OpenableColumns;
 import java.io.File;
 import java.io.FileNotFoundException;
 
-/** Hands the printable sheets (cache/sheets/*.xlsx) to email, Drive or printer apps, read-only. No library needed. */
+/**
+ * Shares files with other apps, no library needed: the printable sheets (cache/sheets/*.xlsx, read-only) and the
+ * camera's photo of a score sheet (cache/photos/*.jpg, which the camera app writes).
+ */
 public final class SheetProvider extends ContentProvider {
     static Uri uri(Context c, File f) {
-        return Uri.parse("content://" + c.getPackageName() + ".sheets/" + Uri.encode(f.getName()));
+        String dir = f.getParentFile().getName();
+        return Uri.parse("content://" + c.getPackageName() + ".sheets/" + ("photos".equals(dir) ? "photos/" : "") + Uri.encode(f.getName()));
     }
 
+    private boolean photo(Uri u) { return u.getPathSegments().size() == 2 && "photos".equals(u.getPathSegments().get(0)); }
+
     private File file(Uri u) throws FileNotFoundException {
-        File dir = new File(getContext().getCacheDir(), "sheets");
+        File dir = new File(getContext().getCacheDir(), photo(u) ? "photos" : "sheets");
         File f = new File(dir, u.getLastPathSegment() == null ? "" : u.getLastPathSegment());
-        if (!f.getParentFile().equals(dir) || !f.isFile()) throw new FileNotFoundException(u.toString());
+        if (!f.getParentFile().equals(dir) || (!photo(u) && !f.isFile())) throw new FileNotFoundException(u.toString());
         return f;
     }
 
     @Override public ParcelFileDescriptor openFile(Uri u, String mode) throws FileNotFoundException {
+        if (photo(u) && mode.contains("w")) {
+            File f = file(u);
+            f.getParentFile().mkdirs();
+            return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_WRITE_ONLY | ParcelFileDescriptor.MODE_CREATE
+                    | ParcelFileDescriptor.MODE_TRUNCATE);
+        }
         return ParcelFileDescriptor.open(file(u), ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
@@ -35,7 +47,7 @@ public final class SheetProvider extends ContentProvider {
         return c;
     }
 
-    @Override public String getType(Uri u) { return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; }
+    @Override public String getType(Uri u) { return photo(u) ? "image/jpeg" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; }
     @Override public boolean onCreate() { return true; }
     @Override public Uri insert(Uri u, ContentValues v) { return null; }
     @Override public int delete(Uri u, String s, String[] a) { return 0; }

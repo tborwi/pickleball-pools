@@ -48,19 +48,26 @@ async function route(req, env) {
   if (p === "/admin/roles" && m === "PUT") { need(me, "admin"); return grantRole(req, env, me); }
   // "/remove" (POST) does the same as DELETE, for clients that can't send a body with DELETE
   if ((p === "/admin/roles" && m === "DELETE") || (p === "/admin/roles/remove" && m === "POST")) { need(me, "admin"); return revokeRole(req, env, me); }
+  if (p === "/admin/audit" && m === "GET") { need(me, "admin"); return getAudit(env, "", url); }
 
   if (p === "/tournaments" && m === "GET") return listTournaments(env, me);
   if (p === "/tournaments" && m === "POST") { need(me, "admin", "director"); return createTournament(req, env, me); }
   const t = p.match(/^\/tournaments\/([\w-]+)\/staff$/);
   const lv = p.match(/^\/tournaments\/([\w-]+)\/(live|scores)$/);
-  if (lv && lv[2] === "live" && m === "PUT") { await needStaff(env, me, lv[1], "director"); return putLive(req, env, lv[1]); }
-  if (lv && lv[2] === "live" && m === "GET") { await needStaff(env, me, lv[1], "director", "captain"); return getLive(env, me, lv[1], url); }
+  if (lv && lv[2] === "live" && m === "PUT") { await needStaff(env, me, lv[1], "director"); return putLive(req, env, me, lv[1]); }
+  if (lv && lv[2] === "live" && m === "GET") return getLive(env, me, lv[1], url); // checks access itself (staff or player)
   if (lv && lv[2] === "scores" && m === "POST") { await needStaff(env, me, lv[1], "director", "captain"); return postScore(req, env, me, lv[1]); }
+  const rc = p.match(/^\/tournaments\/([\w-]+)\/receipts(?:\/([\w-]+))?$/);
+  if (rc && !rc[2] && m === "POST") { await needStaff(env, me, rc[1], "director", "captain"); return postReceipt(req, env, me, rc[1], url); }
+  if (rc && rc[2] && m === "GET") return getReceipt(env, me, rc[1], rc[2]);
+  const au = p.match(/^\/tournaments\/([\w-]+)\/(audit|events)$/);
+  if (au && au[2] === "audit" && m === "GET") { await needStaff(env, me, au[1], "director"); return getAudit(env, au[1], url); }
+  if (au && au[2] === "events" && m === "POST") { await needStaff(env, me, au[1], "director"); return postEvent(req, env, me, au[1]); }
   const tr = p.match(/^\/tournaments\/([\w-]+)\/staff\/remove$/);
-  if (tr && m === "POST") { await needStaff(env, me, tr[1], "director"); return deleteStaff(req, env, tr[1]); }
+  if (tr && m === "POST") { await needStaff(env, me, tr[1], "director"); return deleteStaff(req, env, me, tr[1]); }
   if (t && m === "GET") { await needStaff(env, me, t[1], "director", "captain"); return listStaff(env, t[1]); }
   if (t && m === "PUT") { await needStaff(env, me, t[1], "director"); return putStaff(req, env, me, t[1]); }
-  if (t && m === "DELETE") { await needStaff(env, me, t[1], "director"); return deleteStaff(req, env, t[1]); }
+  if (t && m === "DELETE") { await needStaff(env, me, t[1], "director"); return deleteStaff(req, env, me, t[1]); }
 
   throw new Http(404, "Not found");
 }
@@ -267,10 +274,11 @@ async function grantRole(req, env, me) {
   if (!ORG_ROLES.includes(role)) throw new Http(400, "Role must be one of: " + ORG_ROLES.join(", "));
   await env.DB.prepare("INSERT OR IGNORE INTO roles (email, role, granted_by, created) VALUES (?, ?, ?, ?)")
     .bind(email, role, me.email, nowS()).run();
+  await audit(env, "", me.email, "role", "", { email, role, change: "given" });
   return json({ ok: true });
 }
 
-async function revokeRole(req, env) {
+async function revokeRole(req, env, me) {
   const b = await body(req);
   const email = cleanEmail(b.email), role = String(b.role || "");
   if (role === "admin") {
@@ -278,6 +286,7 @@ async function revokeRole(req, env) {
     if (n.n === 0) throw new Http(400, "There must always be at least one admin.");
   }
   await env.DB.prepare("DELETE FROM roles WHERE email = ? AND role = ?").bind(email, role).run();
+  await audit(env, "", me.email, "role", "", { email, role, change: "removed" });
   return json({ ok: true });
 }
 
@@ -289,7 +298,17 @@ async function listTournaments(env, me) {
     ? await env.DB.prepare("SELECT id, name, created_by, created FROM tournaments ORDER BY created DESC").all()
     : await env.DB.prepare("SELECT DISTINCT t.id, t.name, t.created_by, t.created FROM tournaments t JOIN staff s " +
         "ON s.tournament_id = t.id WHERE s.email = ? ORDER BY t.created DESC").bind(me.email).all();
-  return json({ tournaments: rows.results });
+  const out = rows.results;
+  // Tournaments this person plays in (matched by email or DUPR ID in the published pools)
+  const lives = (await env.DB.prepare("SELECT l.tournament_id AS id, l.data, t.name, t.created_by, t.created FROM live l " +
+    "JOIN tournaments t ON t.id = l.tournament_id ORDER BY t.created DESC").all()).results;
+  for (const l of lives)
+    if (myTeams(JSON.parse(l.data), me).size > 0) {
+      const have = out.find(x => x.id === l.id);
+      if (have) have.playing = true;
+      else out.push({ id: l.id, name: l.name, created_by: l.created_by, created: l.created, playing: true });
+    }
+  return json({ tournaments: out });
 }
 
 async function createTournament(req, env, me) {
@@ -317,10 +336,11 @@ async function putStaff(req, env, me, id) {
   await env.DB.prepare("INSERT INTO staff (tournament_id, email, role, courts, granted_by, created) VALUES (?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(tournament_id, email, role) DO UPDATE SET courts = excluded.courts")
     .bind(id, email, role, courts, me.email, nowS()).run();
+  await audit(env, id, me.email, "staff", "", { email, role, courts, change: "set" });
   return json({ ok: true });
 }
 
-async function deleteStaff(req, env, id) {
+async function deleteStaff(req, env, me, id) {
   const b = await body(req);
   const email = cleanEmail(b.email), role = String(b.role || "");
   if (role === "director") {
@@ -329,13 +349,14 @@ async function deleteStaff(req, env, id) {
     if (n.n === 0) throw new Http(400, "A tournament needs at least one director.");
   }
   await env.DB.prepare("DELETE FROM staff WHERE tournament_id = ? AND email = ? AND role = ?").bind(id, email, role).run();
+  await audit(env, id, me.email, "staff", "", { email, role, change: "removed" });
   return json({ ok: true });
 }
 
 // ------------------------------------------------------------------ live scoring
 
 /** The director's phone publishes the current pools. Scores already entered for matches that still exist are kept. */
-async function putLive(req, env, id) {
+async function putLive(req, env, me, id) {
   const d = (await body(req)).data;
   if (!d || !Array.isArray(d.matches) || d.matches.length > 2000) throw new Http(400, "Expected data.matches.");
   for (const x of d.matches)
@@ -344,33 +365,73 @@ async function putLive(req, env, id) {
   if (text.length > 500000) throw new Http(400, "Too much data.");
   await env.DB.prepare("INSERT INTO live (tournament_id, data, updated) VALUES (?, ?, ?) " +
     "ON CONFLICT(tournament_id) DO UPDATE SET data = excluded.data, updated = excluded.updated").bind(id, text, nowS()).run();
+  await audit(env, id, me.email, "publish", "", { matches: d.matches.length });
   return json({ ok: true });
 }
 
-/** Pools + scores. Court captains get only the matches on their courts. ?since=<seq> returns only newer scores. */
+/**
+ * What this person may see of a tournament: "all" (admin, director), "courts" (court captain: their courts) or
+ * "player" (plays in it: every match and score, receipts of their own matches). Throws 403 otherwise.
+ */
+async function access(env, me, id, data) {
+  const t = await env.DB.prepare("SELECT id FROM tournaments WHERE id = ?").bind(id).first();
+  if (!t) throw new Http(404, "No such tournament.");
+  const teams = data ? myTeams(data, me) : new Set();
+  if (me.roles.includes("admin")) return { kind: "all", courts: null, teams };
+  const r = (await env.DB.prepare("SELECT role, courts FROM staff WHERE tournament_id = ? AND email = ?").bind(id, me.email).all()).results;
+  if (r.some(x => x.role === "director")) return { kind: "all", courts: null, teams };
+  if (r.some(x => x.role === "captain"))
+    return { kind: "courts", courts: r.flatMap(x => x.courts.split(",")).filter(Boolean), teams };
+  if (teams.size > 0) return { kind: "player", courts: [], teams };
+  throw new Http(403, "You don't have permission to do that.");
+}
+
+/** Team ids this person plays on: data.who = {teamId: {dupr: [...], email: [...]}} (only directors see it). */
+function myTeams(data, me) {
+  const out = new Set();
+  const dupr = String(me.dupr_id || "").toUpperCase();
+  for (const [tid, w] of Object.entries((data && data.who) || {}))
+    if ((w.email || []).map(e => String(e).toLowerCase()).includes(me.email) || (dupr && (w.dupr || []).map(d => String(d).toUpperCase()).includes(dupr)))
+      out.add(tid);
+  return out;
+}
+
+/** May this person see receipts / score this match? */
+function canSeeMatch(a, match) {
+  return a.kind === "all" || (a.courts || []).includes(String(match.court)) || a.teams.has(match.aId) || a.teams.has(match.bId);
+}
+
+/**
+ * Pools + scores + receipts. Court captains get only the matches on their courts, unless ?view=all (then every
+ * match, read-only, like a player). Players get every match. ?since=<seq> returns only newer scores.
+ */
 async function getLive(env, me, id, url) {
   const row = await env.DB.prepare("SELECT data, updated FROM live WHERE tournament_id = ?").bind(id).first();
+  let data = row ? JSON.parse(row.data) : null;
+  const a = await access(env, me, id, data);
   const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
   const sc = await env.DB.prepare("SELECT match_key AS key, games, entered_by AS by, seq FROM scores " +
     "WHERE tournament_id = ? AND seq > ? ORDER BY seq").bind(id, since).all();
   const top = await env.DB.prepare("SELECT COALESCE(MAX(seq), 0) AS s FROM scores WHERE tournament_id = ?").bind(id).first();
-  let data = row ? JSON.parse(row.data) : null;
-  const courts = await captainCourts(env, me, id);
   let scores = sc.results.map(r => ({ ...r, games: JSON.parse(r.games) }));
-  if (data && courts) {
-    data = { ...data, matches: data.matches.filter(x => courts.includes(String(x.court))) };
-    const keys = new Set(data.matches.map(x => x.key));
-    scores = scores.filter(x => keys.has(x.key));
-  }
-  return json({ data, updated: row ? row.updated : 0, scores, seq: top.s, courts });
-}
-
-/** Courts this person may score, or null if they may score every court (admin or director). */
-async function captainCourts(env, me, id) {
-  if (me.roles.includes("admin")) return null;
-  const r = (await env.DB.prepare("SELECT role, courts FROM staff WHERE tournament_id = ? AND email = ?").bind(id, me.email).all()).results;
-  if (r.some(x => x.role === "director")) return null;
-  return r.flatMap(x => x.courts.split(",")).filter(Boolean);
+  let receipts = (await env.DB.prepare("SELECT id, match_key AS key, entered_by AS by, created FROM receipts " +
+    "WHERE tournament_id = ? ORDER BY created").bind(id).all()).results;
+  if (data) {
+    const all = data.matches;
+    const seeable = new Set(all.filter(x => canSeeMatch(a, x)).map(x => x.key));
+    receipts = receipts.filter(r => seeable.has(r.key));
+    if (a.kind !== "all") {
+      const { who, ...rest } = data; // players' emails and DUPR IDs stay with the directors
+      data = rest;
+      if (a.kind === "courts" && url.searchParams.get("view") !== "all") {
+        data = { ...data, matches: all.filter(x => a.courts.includes(String(x.court))) };
+        const keys = new Set(data.matches.map(x => x.key));
+        scores = scores.filter(x => keys.has(x.key));
+      }
+    }
+  } else receipts = [];
+  return json({ data, updated: row ? row.updated : 0, scores, seq: top.s, courts: a.courts, receipts,
+    myTeams: [...a.teams], view: a.kind });
 }
 
 async function postScore(req, env, me, id) {
@@ -380,9 +441,11 @@ async function postScore(req, env, me, id) {
   const d = JSON.parse(row.data);
   const match = d.matches.find(x => x.key === b.key);
   if (!match) throw new Http(400, "That match isn't in the current pools. Refresh and try again.");
-  const courts = await captainCourts(env, me, id);
-  if (courts && !courts.includes(String(match.court))) throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
+  const a = await access(env, me, id, d);
+  if (a.kind !== "all" && !(a.courts || []).includes(String(match.court)))
+    throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
   const games = checkGames(b.games, d.pointsToWin || 11, d.winBy || 2);
+  const old = await env.DB.prepare("SELECT games FROM scores WHERE tournament_id = ? AND match_key = ?").bind(id, b.key).first();
   // seq: one more than the highest so far for this tournament (D1 runs statements one at a time per database)
   await env.DB.prepare("INSERT INTO scores (tournament_id, match_key, games, entered_by, seq, updated) " +
     "VALUES (?1, ?2, ?3, ?4, (SELECT COALESCE(MAX(seq), 0) + 1 FROM scores WHERE tournament_id = ?1), ?5) " +
@@ -390,7 +453,73 @@ async function postScore(req, env, me, id) {
     "seq = (SELECT COALESCE(MAX(seq), 0) + 1 FROM scores WHERE tournament_id = ?1), updated = excluded.updated")
     .bind(id, b.key, JSON.stringify(games), me.email, nowS()).run();
   const s = await env.DB.prepare("SELECT seq FROM scores WHERE tournament_id = ? AND match_key = ?").bind(id, b.key).first();
+  await audit(env, id, me.email, "score", b.key, { court: match.court, a: match.a, b: match.b,
+    old: old ? JSON.parse(old.games) : [], new: games });
   return json({ ok: true, seq: s.seq });
+}
+
+// ------------------------------------------------------------------ photo receipts
+
+const MAX_PHOTO = 4 * 1024 * 1024;
+
+/** A court captain's photo of the paper score sheet (with initials) for one match. Body: the JPEG itself. */
+async function postReceipt(req, env, me, id, url) {
+  const key = url.searchParams.get("key") || "";
+  const row = await env.DB.prepare("SELECT data FROM live WHERE tournament_id = ?").bind(id).first();
+  if (!row) throw new Http(400, "The director hasn't published the pools yet.");
+  const d = JSON.parse(row.data);
+  const match = d.matches.find(x => x.key === key);
+  if (!match) throw new Http(400, "That match isn't in the current pools.");
+  const a = await access(env, me, id, d);
+  if (a.kind !== "all" && !(a.courts || []).includes(String(match.court)))
+    throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
+  if (!/^image\/jpeg/.test(req.headers.get("Content-Type") || "")) throw new Http(400, "Send the photo as a JPEG.");
+  const bytes = await req.arrayBuffer();
+  if (bytes.byteLength < 100 || bytes.byteLength > MAX_PHOTO) throw new Http(400, "The photo must be under 4 MB.");
+  const u = new Uint8Array(bytes);
+  if (u[0] !== 0xff || u[1] !== 0xd8) throw new Http(400, "That isn't a JPEG photo.");
+  const rid = randomToken(12);
+  await env.RECEIPTS.put(`${id}/${rid}.jpg`, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  await env.DB.prepare("INSERT INTO receipts (id, tournament_id, match_key, entered_by, created, size) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(rid, id, key, me.email, nowS(), bytes.byteLength).run();
+  await audit(env, id, me.email, "receipt", key, { receipt: rid, court: match.court, a: match.a, b: match.b });
+  return json({ ok: true, id: rid }, 201);
+}
+
+async function getReceipt(env, me, id, rid) {
+  const r = await env.DB.prepare("SELECT match_key FROM receipts WHERE id = ? AND tournament_id = ?").bind(rid, id).first();
+  if (!r) throw new Http(404, "No such receipt.");
+  const row = await env.DB.prepare("SELECT data FROM live WHERE tournament_id = ?").bind(id).first();
+  const d = row ? JSON.parse(row.data) : { matches: [] };
+  const a = await access(env, me, id, d);
+  const match = d.matches.find(x => x.key === r.match_key);
+  if (a.kind !== "all" && !(match && canSeeMatch(a, match))) throw new Http(403, "You can only see receipts of your own matches.");
+  const obj = await env.RECEIPTS.get(`${id}/${rid}.jpg`);
+  if (!obj) throw new Http(404, "Photo missing.");
+  return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+}
+
+// ------------------------------------------------------------------ audit
+
+async function audit(env, tid, email, action, key, detail) {
+  await env.DB.prepare("INSERT INTO audit (tournament_id, at, email, action, match_key, detail) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(tid, nowS(), email, action, key || "", JSON.stringify(detail || {})).run();
+}
+
+/** Newest first, 200 at a time; ?before=<id> for older entries. tid '' = organization (roles), admins only. */
+async function getAudit(env, tid, url) {
+  const before = parseInt(url.searchParams.get("before") || "0", 10) || 2147483647;
+  const r = await env.DB.prepare("SELECT id, at, email, action, match_key AS key, detail FROM audit " +
+    "WHERE tournament_id = ? AND id < ? ORDER BY id DESC LIMIT 200").bind(tid, before).all();
+  return json({ entries: r.results.map(x => ({ ...x, detail: JSON.parse(x.detail || "{}") })) });
+}
+
+/** Things only the director's phone knows about: started, unlocked. */
+async function postEvent(req, env, me, id) {
+  const action = String((await body(req)).action || "");
+  if (!["started", "unlocked"].includes(action)) throw new Http(400, "Unknown event.");
+  await audit(env, id, me.email, action, "", {});
+  return json({ ok: true });
 }
 
 /** Same rules as the app (core/Rules.java): best 2 of 3, each game to `to`, win by `by` (USA Pickleball 15.C). */

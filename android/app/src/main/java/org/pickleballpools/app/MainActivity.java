@@ -49,10 +49,13 @@ public class MainActivity extends Activity {
     AccountScreen account;
     Live live;
     CaptainScreen captain;
+    LiveScreen liveScreen;
+    Receipts receipts;
 
     @SuppressWarnings("deprecation")
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == Receipts.TAKE_PHOTO) { receipts.onPhoto(res == RESULT_OK); return; }
         if (req == RegistrationsScreen.PICK_FILE && res == RESULT_OK && data != null && data.getData() != null) regs.onFile(data.getData());
     }
 
@@ -71,6 +74,8 @@ public class MainActivity extends Activity {
         account = new AccountScreen(this);
         live = new Live(this, account.api);
         captain = new CaptainScreen(this, live);
+        liveScreen = new LiveScreen(this, live);
+        receipts = new Receipts(this, account.api);
         go(this::home, false);
         signInLink(getIntent());
     }
@@ -164,8 +169,9 @@ public class MainActivity extends Activity {
             smallButton("Unlock the pools…", v -> confirm("Unlock the pools?",
                     "Only if the pools really must change (for example, rebuilt after a mistake). Scores already entered are kept, "
                             + "but redoing a round's pools erases that round's scores. Start again when they are right.",
-                    () -> { t.unlock(); save(); refresh(); }));
+                    () -> { t.unlock(); live.event("unlocked"); save(); refresh(); }));
         }
+        if (live.directing()) button("History (who changed what)", v -> go(account::history, true));
         heading("More");
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
@@ -187,18 +193,28 @@ public class MainActivity extends Activity {
                     save();
                     if (live.directing()) live.syncNow();
                     refresh();
+                    live.event("started");
                     toast("Tournament started");
                 });
     }
 
     /** "Score my courts" for each tournament this person is a court captain of. */
     void captainButtons() {
+        java.util.Set<String> shown = new java.util.HashSet<>();
         org.json.JSONArray ts = account.api.signedIn() ? account.api.me().optJSONArray("tournaments") : null;
         for (int i = 0; ts != null && i < ts.length(); i++) {
             org.json.JSONObject x = ts.optJSONObject(i);
             if (!"captain".equals(x.optString("role"))) continue;
+            shown.add(x.optString("id"));
             button("🏓 Score my courts" + (x.optString("courts").isEmpty() ? "" : " (" + x.optString("courts") + ")") + ": "
                     + x.optString("name"), v -> captain.open(x.optString("id"), x.optString("name")));
+        }
+        // Tournaments this person plays in: live scores and their score sheet photos
+        org.json.JSONArray pl = account.api.signedIn() ? account.playing() : null;
+        for (int i = 0; pl != null && i < pl.length(); i++) {
+            org.json.JSONObject x = pl.optJSONObject(i);
+            if (shown.contains(x.optString("id")) || x.optString("id").equals(t.serverId)) continue;
+            button("📊 Live scores: " + x.optString("name"), v -> liveScreen.open(x.optString("id"), x.optString("name")));
         }
     }
 
@@ -424,7 +440,18 @@ public class MainActivity extends Activity {
                     + (m.done() ? "   → " + ids.get(m.winner()).label() + " won" : "");
             TextView row = text(s, 18, false, Color.BLACK);
             card(row).setBackground(box(m.done() ? LIGHT : 0xFFFFF8E1));
-            row.setOnClickListener(v -> score(p, m));
+            org.json.JSONArray rc = live.directing() ? live.receiptsFor(t.matchKey(p, m)) : null;
+            if (rc != null) row.append("\n   📷 " + rc.length() + " score sheet photo" + (rc.length() == 1 ? "" : "s"));
+            row.setOnClickListener(v -> {
+                if (!live.directing() || !t.started()) { score(p, m); return; }
+                String[] opts = rc == null ? new String[]{"Enter or change the score", "📷 Take a photo of the score sheet"}
+                        : new String[]{"Enter or change the score", "📷 Take a photo of the score sheet", "See the score sheet photo"};
+                new AlertDialog.Builder(this).setTitle(ids.get(m.a).label() + "  vs  " + ids.get(m.b).label()).setItems(opts, (d, w) -> {
+                    if (w == 0) score(p, m);
+                    else if (w == 1) receipts.take(t.serverId, t.matchKey(p, m));
+                    else receipts.view(t.serverId, rc.optString(rc.length() - 1), "Score sheet");
+                }).show();
+            });
         }
     }
 
