@@ -162,6 +162,13 @@ public final class CoreTest {
         check(t.matchKey(t.round1.get(0), m).equals("r1:A:" + m.a + ":" + m.b), "live match key");
         Team nm = new Team("n"); nm.player1 = "Pat Lee"; nm.player2 = "Sam Ray";
         check(nm.label().equals("Pat Lee / Sam Ray"), "a team is shown as its two players");
+        Map<String, String> sn = Names.shortNames(List.of("Pat Lee", "Pat Lewis", "Pat Ray", "Sam Lee", "Pat Leeson",
+                "Cher", "Bob Allen Smith Jr.", "  Ann   Marie  "));
+        check(sn.get("Sam Lee").equals("Sam L.") && sn.get("Pat Ray").equals("Pat R."), "short name: first name + last initial");
+        check(sn.get("Pat Lee").equals("Pat Lee") && sn.get("Pat Lewis").equals("Pat Lew.") && sn.get("Pat Leeson").equals("Pat Lees."),
+                "same short name -> more letters until unique (Pat Lee, Pat Lew., Pat Lees.)");
+        check(sn.get("Cher").equals("Cher") && sn.get("Bob Allen Smith Jr.").equals("Bob S.") && Names.of(sn, "Ann Marie").equals("Ann M."),
+                "one-word names, middle names, suffixes, extra spaces");
         Tournament ti = new Tournament();
         Team d1 = ti.addTeam("q2zx9p", "L8EW8W"), d2 = ti.addTeam("L8EW8W", "Q2ZX9P"), d3 = ti.addTeam("", "AB12CD");
         check(d1.id.equals("L8EW8W+Q2ZX9P"), "team id is the sorted DUPR ID pair");

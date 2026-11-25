@@ -32,11 +32,18 @@ no sign-in) and are **emailed** the photo of each score sheet from their matches
   The photo link is long and random; only people who have the email can open it. Every email is in the History.
 - **Who else sees photos:** the tournament's directors and admins, and the captain of that court, in the app.
 - **Live scores page** (`/t/<tournament id>`): players' names, pools, standings and scores, updated every 20 seconds.
-  A team is shown as its two players' names. No emails, DUPR IDs, DUPR links or photos. Standings are worked out on the director's phone (same tiebreak rules).
+  A team is shown as its two players' short names. No emails, DUPR IDs, DUPR links or photos. Standings are worked out on the director's phone (same tiebreak rules).
 - **Start email:** when the director presses Start, every player with an email gets the live scores link and their
   team's schedule (pool, and for each round the court and opponent). Sent once.
 - **Results email:** the director's **Email the results to all players** sends standings, Finals qualifiers and the
   live page link, one email per player.
+
+## Names in public
+
+Outside the director's and admin's own screens, players are shown as **first name and last initial** ("Pat L."):
+the live scores page, all emails, court captains' screens, the printed sheets and **Share results**. If two players
+would look the same, letters of the last name are added until they differ ("Pat Lee", "Pat Lew."). Middle names
+and suffixes (Jr., Sr., II...) are left out. Code: `core/Names.java`.
 
 ## Live scoring
 

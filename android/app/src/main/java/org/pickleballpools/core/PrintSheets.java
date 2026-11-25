@@ -74,10 +74,8 @@ public final class PrintSheets {
 
     static String when(Tournament t, List<Pool> round) { return round == t.round2 ? t.round2When : t.round1When; }
 
-    /** "Player 1 / Player 2". */
-    public static String players(Team x) {
-        return x.label();
-    }
+    /** Public team name: "Pat L. / Sam R." (short names, see Names). Printed sheets go on the wall. */
+    public static String players(Map<String, String> sn, Team x) { return Names.team(sn, x); }
 
     // ---------------------------------------------------------------- 1. schedule
 
@@ -87,6 +85,7 @@ public final class PrintSheets {
         s.landscape = true;
         s.width(0, 12).width(1, 26).width(2, 26).width(3, 10).width(4, 3);
         Map<String, Team> ids = t.byId();
+        Map<String, String> sn = Names.forTournament(t);
         List<int[]> courts = courts(t, round);
         int maxCourts = 1;
         for (int[] c : courts) maxCourts = Math.max(maxCourts, c.length);
@@ -109,8 +108,8 @@ public final class PrintSheets {
             r++;
             for (String id : p.teamIds) {
                 Team tm = ids.get(id);
-                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, tm.player1, Xlsx.LEFT_BOX)
-                        .set(r, 2, tm.player2, Xlsx.LEFT_BOX).set(r, 3, String.format(Locale.US, "%.2f", tm.combined()), Xlsx.BOX);
+                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, Names.of(sn, tm.player1), Xlsx.LEFT_BOX)
+                        .set(r, 2, Names.of(sn, tm.player2), Xlsx.LEFT_BOX).set(r, 3, String.format(Locale.US, "%.2f", tm.combined()), Xlsx.BOX);
                 r++;
             }
             r = Math.max(r, r - p.teamIds.size() + notes.length) + 1;
@@ -138,6 +137,7 @@ public final class PrintSheets {
     public static Xlsx captainSheets(Tournament t, List<Pool> round) {
         Xlsx x = new Xlsx();
         Map<String, Team> ids = t.byId();
+        Map<String, String> sn = Names.forTournament(t);
         List<int[]> courts = courts(t, round);
         for (int i = 0; i < round.size(); i++) {
             Pool p = round.get(i);
@@ -179,7 +179,7 @@ public final class PrintSheets {
             s.set(r, 0, "TEAMS", Xlsx.BOLD);
             r++;
             for (String id : p.teamIds) {
-                s.set(r, 0, num(p, id), Xlsx.BOX).merge(r, 1, r, Math.max(cols - 2, 8), players(ids.get(id)), Xlsx.LEFT_BOX);
+                s.set(r, 0, num(p, id), Xlsx.BOX).merge(r, 1, r, Math.max(cols - 2, 8), players(sn, ids.get(id)), Xlsx.LEFT_BOX);
                 r++;
             }
         }
@@ -191,6 +191,7 @@ public final class PrintSheets {
     public static Xlsx resultsGrid(Tournament t, List<Pool> round) {
         Xlsx x = new Xlsx();
         Map<String, Team> ids = t.byId();
+        Map<String, String> sn = Names.forTournament(t);
         for (Pool p : round) {
             Xlsx.Sheet s = x.sheet(p.title());
             s.landscape = true;
@@ -203,7 +204,7 @@ public final class PrintSheets {
             s.set(1, 0, null, Xlsx.PLAIN);
             for (int j = 0; j < n; j++) s.set(1, 2 + j, j + 1, Xlsx.NAME_BOX);
             s.merge(1, res, 1, res + 2, "Results", Xlsx.HEADER);
-            for (int j = 0; j < n; j++) s.set(2, 2 + j, players(ids.get(p.teamIds.get(j))).replace(" / ", "\n"), Xlsx.BOX);
+            for (int j = 0; j < n; j++) s.set(2, 2 + j, players(sn, ids.get(p.teamIds.get(j))).replace(" / ", "\n"), Xlsx.BOX);
             s.set(2, res, "Record W-L", Xlsx.BOLD_BOX).set(2, res + 1, "Points F-A", Xlsx.BOLD_BOX).set(2, res + 2, "Place", Xlsx.BOLD_BOX);
             s.height(1, 20).height(2, 40);
             boolean any = p.scored() > 0;
@@ -211,7 +212,7 @@ public final class PrintSheets {
             for (int i = 0; i < n; i++) {
                 String id = p.teamIds.get(i);
                 int r = 3 + i * 2;
-                s.merge(r, 0, r + 1, 0, (i + 1) + "  " + players(ids.get(id)).replace(" / ", "\n"), Xlsx.NAME_BOX);
+                s.merge(r, 0, r + 1, 0, (i + 1) + "  " + players(sn, ids.get(id)).replace(" / ", "\n"), Xlsx.NAME_BOX);
                 s.set(r, 1, "score", Xlsx.BOX).set(r + 1, 1, "points f-a", Xlsx.BOX);
                 for (int j = 0; j < n; j++) {
                     String o = p.teamIds.get(j);

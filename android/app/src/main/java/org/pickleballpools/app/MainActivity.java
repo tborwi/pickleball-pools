@@ -632,24 +632,25 @@ public class MainActivity extends Activity {
 
     void share() {
         Map<String, Team> ids = t.byId();
+        Map<String, String> sn = org.pickleballpools.core.Names.forTournament(t); // shared publicly: short names
         StringBuilder sb = new StringBuilder(t.name).append("\n");
         List<Pool> all = new ArrayList<>(t.round1);
         all.addAll(t.round2);
         for (Pool p : all) {
             sb.append("\n").append(t.round1.contains(p) ? "Round 1 " : "Round 2 ").append(p.title()).append("\n");
             for (Standings.Row r : Standings.of(p, ids))
-                sb.append(String.format(Locale.US, "%d. %s  %d-%d  pts %+d%s\n", r.place, r.team.label(), r.wins, r.losses,
+                sb.append(String.format(Locale.US, "%d. %s  %d-%d  pts %+d%s\n", r.place, org.pickleballpools.core.Names.team(sn, r.team), r.wins, r.losses,
                         r.diff(), !p.complete() || r.tiebreak.isEmpty() ? "" : "  (" + r.tiebreak + ")"));
         }
         List<Team> f = t.finalists();
         if (!f.isEmpty()) {
             sb.append("\nQualified for the Finals:\n");
-            for (Team x : f) sb.append("- ").append(x.label()).append("\n");
+            for (Team x : f) sb.append("- ").append(org.pickleballpools.core.Names.team(sn, x)).append("\n");
         }
         if (all.isEmpty()) {
             sb.append("\nTeams by seed:\n");
             List<Team> s = t.seeded();
-            for (int i = 0; i < s.size(); i++) sb.append(String.format(Locale.US, "%d. %s  %.2f\n", i + 1, s.get(i).label(), s.get(i).combined()));
+            for (int i = 0; i < s.size(); i++) sb.append(String.format(Locale.US, "%d. %s  %.2f\n", i + 1, org.pickleballpools.core.Names.team(sn, s.get(i)), s.get(i).combined()));
         }
         Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(Intent.EXTRA_SUBJECT, t.name + " results").putExtra(Intent.EXTRA_TEXT, sb.toString());
