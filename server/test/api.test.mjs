@@ -59,7 +59,32 @@ check((await call("GET", `/tournaments/${tid}/staff`, cap)).status === 200, "cap
 check((await call("PUT", `/tournaments/${tid}/staff`, cap, { email: "a@example.com", role: "captain" })).status === 403, "captain can't add staff");
 check((await call("GET", "/admin/users", cap)).status === 403, "captain can't list users");
 
+// Live scoring
+const live = { pointsToWin: 11, winBy: 2, matches: [
+  { key: "r1:A:t1:t4", court: 7, round: 1, pool: "Pool A", a: "1 Ortiz/Moore", b: "4 Ba/Bruckbauer" },
+  { key: "r1:A:t2:t3", court: 9, round: 1, pool: "Pool A", a: "2 Demski/Weisbrot", b: "3 Lohman/Zygarlicke" }] };
+check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t1:t4", games: [[11, 5], [11, 9]] })).status === 400, "no scores before pools are published");
+check((await call("PUT", `/tournaments/${tid}/live`, cap, { data: live })).status === 403, "captain can't publish pools");
+check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).status === 200, "director publishes pools");
+let lv = await call("GET", `/tournaments/${tid}/live`, cap);
+check(lv.data.data.matches.length === 1 && lv.data.data.matches[0].court === 7, "captain of courts 7,8 sees only the court 7 match");
+check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t2:t3", games: [[11, 5], [11, 9]] })).status === 403, "captain can't score court 9");
+check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t1:t4", games: [[11, 10], [11, 9]] })).status === 400, "11-10 refused (win by 2)");
+check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t1:t4", games: [[11, 5]] })).status === 400, "unfinished match refused");
+check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t1:t4", games: [[11, 5], [9, 11], [12, 10]] })).status === 200, "captain enters 11-5, 9-11, 12-10");
+lv = await call("GET", `/tournaments/${tid}/live?since=0`, dir);
+check(lv.data.scores.length === 1 && lv.data.scores[0].by === "google.user@example.com" && lv.data.scores[0].games[2][0] === 12, "director sees the captain's score and who entered it");
+check(lv.data.data.matches.length === 2 && lv.data.courts === null, "director sees every court");
+const seq = lv.data.seq;
+check((await call("GET", `/tournaments/${tid}/live?since=${seq}`, dir)).data.scores.length === 0, "since=seq returns only newer scores");
+check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t2:t3", games: [[11, 3], [11, 4]] })).status === 200, "director can score any court");
+check((await call("GET", `/tournaments/${tid}/live?since=${seq}`, dir)).data.scores.length === 1, "the new score has a higher seq");
+check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).status === 200
+  && (await call("GET", `/tournaments/${tid}/live`, dir)).data.scores.length === 2, "republishing keeps scores");
+check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t2:t3", games: [] })).status === 200, "a score can be cleared");
+
 const cash = await emailSignIn("cash@example.com");
+check((await call("GET", `/tournaments/${tid}/live`, cash)).status === 403, "treasurer isn't staff of this tournament (no live scores)");
 me = await call("GET", "/me", cash);
 check(me.data.roles.includes("treasurer"), "treasurer role waits for first sign-in");
 check((await call("GET", "/tournaments", cash)).data.tournaments.length === 1, "treasurer sees all tournaments");

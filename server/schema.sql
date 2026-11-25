@@ -58,3 +58,18 @@ CREATE TABLE IF NOT EXISTS handoffs (    -- one-time code the browser hands back
   user_id TEXT NOT NULL,
   expires INTEGER NOT NULL
 );
+-- Live scoring: the director's phone publishes the pools (matches, team names, courts); captains post game scores.
+CREATE TABLE IF NOT EXISTS live (
+  tournament_id TEXT PRIMARY KEY REFERENCES tournaments(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,                  -- JSON: {pointsToWin, winBy, matches: [{key, court, round, pool, a, b}]}
+  updated INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS scores (
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  match_key TEXT NOT NULL,             -- e.g. "r1:A:t3:t7" (round, pool, the two team ids)
+  games TEXT NOT NULL,                 -- JSON [[11,5],[9,11],[11,7]]; [] = cleared
+  entered_by TEXT NOT NULL,            -- email, for the record
+  seq INTEGER NOT NULL,                -- increases with every change, so phones fetch only what's new
+  updated INTEGER NOT NULL,
+  PRIMARY KEY (tournament_id, match_key)
+);

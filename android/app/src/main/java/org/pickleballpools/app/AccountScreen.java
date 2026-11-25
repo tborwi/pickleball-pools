@@ -76,10 +76,11 @@ final class AccountScreen {
     /** Fetches the latest profile and redraws if it changed (roles given since the last visit). */
     void refreshMe() {
         String before = api.me().toString();
+        if (!api.signedIn()) return;
         api.call("GET", "/me", null, r -> {
             api.setMe(r);
             if (!r.toString().equals(before)) a.refresh();
-        });
+        }, (net, msg) -> {});
     }
 
     static String roleNames(JSONArray roles) {

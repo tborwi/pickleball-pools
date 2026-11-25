@@ -31,6 +31,20 @@ public final class PrintSheets {
         return out;
     }
 
+    /** The court of every match in a round, as on the printed schedule (k-th match of a pool round -> its k-th court). */
+    public static java.util.Map<Match, Integer> courtOf(Tournament t, List<Pool> round) {
+        java.util.Map<Match, Integer> out = new java.util.IdentityHashMap<>();
+        List<int[]> c = courts(t, round);
+        for (int i = 0; i < round.size(); i++) {
+            Pool p = round.get(i);
+            for (int r = 1; r <= rounds(p); r++) {
+                List<Match> ms = inRound(p, r);
+                for (int k = 0; k < ms.size(); k++) out.put(ms.get(k), c.get(i)[Math.min(k, c.get(i).length - 1)]);
+            }
+        }
+        return out;
+    }
+
     /** Matches played at the same time in a pool (= courts it needs). */
     public static int perRound(Pool p) {
         int max = 0;

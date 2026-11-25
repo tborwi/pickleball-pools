@@ -23,7 +23,8 @@ public final class Tournament {
     public int pointsToWin = 11;
     public int winBy = 2; // USA Pickleball 15.C: all scoring options are win by two (win by 1 only for team play)
 
-    public String serverId = "";     // id on the accounts server once put online (for court captains)
+    public String serverId = "";
+    public long liveSeq;             // last live score received from the server     // id on the accounts server once put online (for court captains)
     public int firstCourt = 1;       // printed sheets: courts are numbered on from here, pool by pool
     public String round1When = "", round2When = ""; // printed sheets, e.g. "Saturday 9:00am"
 
@@ -35,6 +36,11 @@ public final class Tournament {
     public final List<Pool> round1 = new ArrayList<>();
     public final List<Pool> round2 = new ArrayList<>();
     public int nextId = 1;
+
+    /** Live-scoring id of a match: round, pool and the two team ids, e.g. "r1:A:t3:t7". */
+    public String matchKey(Pool p, Match m) {
+        return "r" + (round2.contains(p) ? 2 : 1) + ":" + p.name + ":" + m.a + ":" + m.b;
+    }
 
     public Team addTeam() {
         Team t = new Team("t" + nextId++);

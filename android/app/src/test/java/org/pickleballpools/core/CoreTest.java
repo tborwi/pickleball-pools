@@ -156,6 +156,10 @@ public final class CoreTest {
                 if (dir != null) java.nio.file.Files.write(java.nio.file.Paths.get(dir, n[0] + ".xlsx"), b.toByteArray());
             }
         } catch (java.io.IOException e) { check(false, "sheets: " + e); }
+        java.util.Map<Match, Integer> co = PrintSheets.courtOf(t, t.round1);
+        check(co.get(t.round1.get(0).matches.get(0)) == 7 && co.get(t.round1.get(0).matches.get(1)) == 8
+                && co.get(t.round1.get(1).matches.get(0)) == 9, "each match gets its printed court");
+        check(t.matchKey(t.round1.get(0), m).equals("r1:A:" + m.a + ":" + m.b), "live match key");
         check(Xlsx.ref(0, 0).equals("A1") && Xlsx.ref(2, 27).equals("AB3"), "cell references");
     }
 

@@ -21,6 +21,9 @@ import java.nio.charset.StandardCharsets;
 final class Api {
     interface Done { void ok(JSONObject r); }
 
+    /** network = true when the server couldn't be reached (try again later); false when it said no. */
+    interface Failed { void failed(boolean network, String message); }
+
     private final Activity a;
     private final SharedPreferences prefs;
 
@@ -59,10 +62,15 @@ final class Api {
 
     /** Sends a request; on success runs ok on the UI thread, otherwise shows the server's message. */
     void call(String method, String path, JSONObject body, Done ok) {
-        if (server().isEmpty()) { ((MainActivity) a).toast("Set the server address first (Account → Server)."); return; }
+        call(method, path, body, ok, (network, msg) -> ((MainActivity) a).toast(msg));
+    }
+
+    void call(String method, String path, JSONObject body, Done ok, Failed fail) {
+        if (server().isEmpty()) { fail.failed(false, "Set the server address first (Account → Server)."); return; }
         String token = prefs.getString("token", "");
         new Thread(() -> {
             String err;
+            boolean network = false;
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL(server() + path).openConnection();
                 c.setConnectTimeout(15000);
@@ -82,9 +90,11 @@ final class Api {
                 err = r.optString("error", "Server error " + code);
             } catch (Exception e) {
                 err = "Couldn't reach the server. Check the internet connection.";
+                network = true;
             }
             String msg = err;
-            a.runOnUiThread(() -> ((MainActivity) a).toast(msg));
+            boolean net = network;
+            a.runOnUiThread(() -> fail.failed(net, msg));
         }).start();
     }
 

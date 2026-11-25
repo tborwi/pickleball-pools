@@ -47,6 +47,8 @@ public class MainActivity extends Activity {
     Runnable current;
     final RegistrationsScreen regs = new RegistrationsScreen(this);
     AccountScreen account;
+    Live live;
+    CaptainScreen captain;
 
     @SuppressWarnings("deprecation")
     @Override protected void onActivityResult(int req, int res, Intent data) {
@@ -67,8 +69,21 @@ public class MainActivity extends Activity {
         sv.setFitsSystemWindows(true);
         setContentView(sv);
         account = new AccountScreen(this);
+        live = new Live(this, account.api);
+        captain = new CaptainScreen(this, live);
         go(this::home, false);
         signInLink(getIntent());
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        account.refreshMe(); // roles may have changed (e.g. made a court captain)
+        live.start(); // live scoring: send queued scores, publish pools, fetch captains' scores (every 20 s)
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        live.stop();
     }
 
     @Override protected void onNewIntent(Intent i) {
@@ -84,12 +99,13 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     @Override public void onBackPressed() {
         if (back.isEmpty()) super.onBackPressed();
-        else { current = back.pop(); current.run(); }
+        else { live.extra = null; current = back.pop(); current.run(); }
     }
 
     void go(Runnable screen, boolean remember) {
         if (remember && current != null) back.push(current);
         current = screen;
+        live.extra = null;
         screen.run();
         ((ScrollView) page.getParent()).scrollTo(0, 0);
     }
@@ -109,6 +125,11 @@ public class MainActivity extends Activity {
         int out = t.teams.size() - t.seeded().size();
         note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage());
 
+        captainButtons();
+        if (live.directing()) {
+            int w = live.waiting();
+            note("Live scoring is on: court captains' scores arrive by themselves." + (w > 0 ? " " + w + " of your scores waiting for signal." : ""));
+        }
         button("Registrations (" + t.players.size() + " paid players)", v -> go(regs::show, true));
         button("Teams (" + t.seeded().size() + ")", v -> go(this::teams, true));
 
@@ -140,6 +161,17 @@ public class MainActivity extends Activity {
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("Start a new tournament", v -> newTournament());
+    }
+
+    /** "Score my courts" for each tournament this person is a court captain of. */
+    void captainButtons() {
+        org.json.JSONArray ts = account.api.signedIn() ? account.api.me().optJSONArray("tournaments") : null;
+        for (int i = 0; ts != null && i < ts.length(); i++) {
+            org.json.JSONObject x = ts.optJSONObject(i);
+            if (!"captain".equals(x.optString("role"))) continue;
+            button("🏓 Score my courts" + (x.optString("courts").isEmpty() ? "" : " (" + x.optString("courts") + ")") + ": "
+                    + x.optString("name"), v -> captain.open(x.optString("id"), x.optString("name")));
+        }
     }
 
     /** Red warning + button when a round's pools no longer match the teams still in. */
@@ -367,13 +399,26 @@ public class MainActivity extends Activity {
 
     void score(Pool p, Match m) {
         Map<String, Team> ids = t.byId();
+        String warn = t.round1.contains(p) && !t.round2.isEmpty()
+                ? "Round 2 is already made. Changing this score will NOT move teams in Round 2." : null;
+        scoreDialog(ids.get(m.a).label(), ids.get(m.b).label(), m.games, t.pointsToWin, t.winBy, warn, games -> {
+            m.games.clear();
+            m.games.addAll(games);
+            save();
+            if (live.directing()) live.send(t.serverId, t.matchKey(p, m), games);
+            refresh();
+        });
+    }
+
+    /** The score form (3 games, two teams), shared by the director's pool screen and the court captain's screen. */
+    void scoreDialog(String aName, String bName, List<int[]> current, int to, int winBy, String warning,
+                     java.util.function.Consumer<List<int[]>> done) {
         LinearLayout f = form();
-        if (t.round1.contains(p) && !t.round2.isEmpty())
-            f.addView(free(text("Round 2 is already made. Changing this score will NOT move teams in Round 2.", 15, true, RED)));
+        if (warning != null) f.addView(free(text(warning, 15, true, RED)));
         LinearLayout header = new LinearLayout(this);
         header.addView(cell(text("", 14, false, GREY), 1.4f));
-        header.addView(cell(text(ids.get(m.a).label(), 15, true, Color.BLACK), 2));
-        header.addView(cell(text(ids.get(m.b).label(), 15, true, Color.BLACK), 2));
+        header.addView(cell(text(aName, 15, true, Color.BLACK), 2));
+        header.addView(cell(text(bName, 15, true, Color.BLACK), 2));
         f.addView(header);
         EditText[][] in = new EditText[3][2];
         for (int g = 0; g < 3; g++) {
@@ -384,16 +429,16 @@ public class MainActivity extends Activity {
                 e.setInputType(InputType.TYPE_CLASS_NUMBER);
                 e.setTextSize(22);
                 e.setGravity(Gravity.CENTER);
-                if (g < m.games.size()) e.setText(String.valueOf(m.games.get(g)[s]));
+                if (g < current.size()) e.setText(String.valueOf(current.get(g)[s]));
                 in[g][s] = e;
                 row.addView(cell(e, 2));
             }
             f.addView(row);
         }
-        f.addView(free(text("Games to " + t.pointsToWin + ", win by " + t.winBy + ". Leave Game 3 empty if not needed.", 14, false, GREY)));
+        f.addView(free(text("Games to " + to + ", win by " + winBy + ". Leave Game 3 empty if not needed.", 14, false, GREY)));
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Enter scores").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null)
-                .setNeutralButton("Clear", (x, w) -> { m.games.clear(); save(); refresh(); }).show();
+                .setNeutralButton("Clear", (x, w) -> confirm("Clear this score?", "", () -> done.accept(new ArrayList<>()))).show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             List<int[]> games = new ArrayList<>();
             for (int g = 0; g < 3; g++) {
@@ -402,13 +447,10 @@ public class MainActivity extends Activity {
                 if (x.isEmpty() || y.isEmpty()) { toast("Game " + (g + 1) + ": enter both scores"); return; }
                 games.add(new int[]{Integer.parseInt(x), Integer.parseInt(y)});
             }
-            String err = Rules.checkMatch(games, t.pointsToWin, t.winBy);
+            String err = Rules.checkMatch(games, to, winBy);
             if (err != null) { toast(err); return; }
-            m.games.clear();
-            m.games.addAll(games);
-            save();
             d.dismiss();
-            refresh();
+            done.accept(games);
         });
     }
 

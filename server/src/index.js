@@ -52,6 +52,10 @@ async function route(req, env) {
   if (p === "/tournaments" && m === "GET") return listTournaments(env, me);
   if (p === "/tournaments" && m === "POST") { need(me, "admin", "director"); return createTournament(req, env, me); }
   const t = p.match(/^\/tournaments\/([\w-]+)\/staff$/);
+  const lv = p.match(/^\/tournaments\/([\w-]+)\/(live|scores)$/);
+  if (lv && lv[2] === "live" && m === "PUT") { await needStaff(env, me, lv[1], "director"); return putLive(req, env, lv[1]); }
+  if (lv && lv[2] === "live" && m === "GET") { await needStaff(env, me, lv[1], "director", "captain"); return getLive(env, me, lv[1], url); }
+  if (lv && lv[2] === "scores" && m === "POST") { await needStaff(env, me, lv[1], "director", "captain"); return postScore(req, env, me, lv[1]); }
   const tr = p.match(/^\/tournaments\/([\w-]+)\/staff\/remove$/);
   if (tr && m === "POST") { await needStaff(env, me, tr[1], "director"); return deleteStaff(req, env, tr[1]); }
   if (t && m === "GET") { await needStaff(env, me, t[1], "director", "captain"); return listStaff(env, t[1]); }
@@ -326,6 +330,84 @@ async function deleteStaff(req, env, id) {
   }
   await env.DB.prepare("DELETE FROM staff WHERE tournament_id = ? AND email = ? AND role = ?").bind(id, email, role).run();
   return json({ ok: true });
+}
+
+// ------------------------------------------------------------------ live scoring
+
+/** The director's phone publishes the current pools. Scores already entered for matches that still exist are kept. */
+async function putLive(req, env, id) {
+  const d = (await body(req)).data;
+  if (!d || !Array.isArray(d.matches) || d.matches.length > 2000) throw new Http(400, "Expected data.matches.");
+  for (const x of d.matches)
+    if (typeof x.key !== "string" || !x.key || x.key.length > 80) throw new Http(400, "Every match needs a key.");
+  const text = JSON.stringify(d);
+  if (text.length > 500000) throw new Http(400, "Too much data.");
+  await env.DB.prepare("INSERT INTO live (tournament_id, data, updated) VALUES (?, ?, ?) " +
+    "ON CONFLICT(tournament_id) DO UPDATE SET data = excluded.data, updated = excluded.updated").bind(id, text, nowS()).run();
+  return json({ ok: true });
+}
+
+/** Pools + scores. Court captains get only the matches on their courts. ?since=<seq> returns only newer scores. */
+async function getLive(env, me, id, url) {
+  const row = await env.DB.prepare("SELECT data, updated FROM live WHERE tournament_id = ?").bind(id).first();
+  const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
+  const sc = await env.DB.prepare("SELECT match_key AS key, games, entered_by AS by, seq FROM scores " +
+    "WHERE tournament_id = ? AND seq > ? ORDER BY seq").bind(id, since).all();
+  const top = await env.DB.prepare("SELECT COALESCE(MAX(seq), 0) AS s FROM scores WHERE tournament_id = ?").bind(id).first();
+  let data = row ? JSON.parse(row.data) : null;
+  const courts = await captainCourts(env, me, id);
+  let scores = sc.results.map(r => ({ ...r, games: JSON.parse(r.games) }));
+  if (data && courts) {
+    data = { ...data, matches: data.matches.filter(x => courts.includes(String(x.court))) };
+    const keys = new Set(data.matches.map(x => x.key));
+    scores = scores.filter(x => keys.has(x.key));
+  }
+  return json({ data, updated: row ? row.updated : 0, scores, seq: top.s, courts });
+}
+
+/** Courts this person may score, or null if they may score every court (admin or director). */
+async function captainCourts(env, me, id) {
+  if (me.roles.includes("admin")) return null;
+  const r = (await env.DB.prepare("SELECT role, courts FROM staff WHERE tournament_id = ? AND email = ?").bind(id, me.email).all()).results;
+  if (r.some(x => x.role === "director")) return null;
+  return r.flatMap(x => x.courts.split(",")).filter(Boolean);
+}
+
+async function postScore(req, env, me, id) {
+  const b = await body(req);
+  const row = await env.DB.prepare("SELECT data FROM live WHERE tournament_id = ?").bind(id).first();
+  if (!row) throw new Http(400, "The director hasn't published the pools yet.");
+  const d = JSON.parse(row.data);
+  const match = d.matches.find(x => x.key === b.key);
+  if (!match) throw new Http(400, "That match isn't in the current pools. Refresh and try again.");
+  const courts = await captainCourts(env, me, id);
+  if (courts && !courts.includes(String(match.court))) throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
+  const games = checkGames(b.games, d.pointsToWin || 11, d.winBy || 2);
+  // seq: one more than the highest so far for this tournament (D1 runs statements one at a time per database)
+  await env.DB.prepare("INSERT INTO scores (tournament_id, match_key, games, entered_by, seq, updated) " +
+    "VALUES (?1, ?2, ?3, ?4, (SELECT COALESCE(MAX(seq), 0) + 1 FROM scores WHERE tournament_id = ?1), ?5) " +
+    "ON CONFLICT(tournament_id, match_key) DO UPDATE SET games = excluded.games, entered_by = excluded.entered_by, " +
+    "seq = (SELECT COALESCE(MAX(seq), 0) + 1 FROM scores WHERE tournament_id = ?1), updated = excluded.updated")
+    .bind(id, b.key, JSON.stringify(games), me.email, nowS()).run();
+  const s = await env.DB.prepare("SELECT seq FROM scores WHERE tournament_id = ? AND match_key = ?").bind(id, b.key).first();
+  return json({ ok: true, seq: s.seq });
+}
+
+/** Same rules as the app (core/Rules.java): best 2 of 3, each game to `to`, win by `by` (USA Pickleball 15.C). */
+function checkGames(games, to, by) {
+  if (!Array.isArray(games) || games.length > 3) throw new Http(400, "Enter up to 3 games.");
+  let wa = 0, wb = 0;
+  for (const g of games) {
+    if (!Array.isArray(g) || g.length !== 2 || !g.every(n => Number.isInteger(n) && n >= 0 && n <= 99))
+      throw new Http(400, "Scores must be whole numbers.");
+    if (wa === 2 || wb === 2) throw new Http(400, "The match was already over after 2 wins.");
+    const [x, y] = g, hi = Math.max(x, y), lo = Math.min(x, y);
+    if (hi < to || hi - lo < by || (hi > to && hi - lo !== by))
+      throw new Http(400, `${x}-${y} isn't a finished game (to ${to}, win by ${by}).`);
+    if (x > y) wa++; else wb++;
+  }
+  if (games.length > 0 && wa < 2 && wb < 2) throw new Http(400, "Enter games until one team has won 2.");
+  return games;
 }
 
 // ------------------------------------------------------------------ permission checks
