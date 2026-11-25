@@ -146,6 +146,12 @@ let club = await call("PUT", "/club", admin, { club: { name: "Heart of Wisconsin
 check(club.data.club.name === "Heart of Wisconsin PA" && club.data.club.winBy === "2", "admin saves club settings");
 check((await call("PUT", "/club", admin, { club: { winBy: "two" } })).status === 400 && (await call("PUT", "/club", admin, { club: { secret: "x" } })).status === 400, "bad or unknown settings refused");
 check((await call("GET", "/club", cap)).data.club.paymentLink === "https://pay.example/x", "staff read club settings");
+{ // Zeffy campaigns: directors and admins only, archived and non-event campaigns left out, newest first
+  const z = await call("GET", "/zeffy/campaigns", dir);
+  const ids = (z.data.campaigns || []).map(c => c.id).join(",");
+  check(z.status === 200 && ids === "c4,c1", "zeffy campaigns listed: " + ids);
+  check(z.data.campaigns[1].title === "Fall Classic" && z.data.campaigns[1].url === "https://zeffy.test/c1", "zeffy campaign fields");
+}
 check((await call("PUT", "/rosters/practice", dir, { players: ["A"] })).status === 403, "only admins save rosters");
 await call("PUT", "/rosters/practice", admin, { players: ["Pat Lee", "Sam Ray *", " ", "Kim Fox"] });
 const rs = await call("GET", "/rosters/practice", dir);

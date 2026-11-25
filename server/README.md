@@ -22,6 +22,8 @@ build has it built in.
 4. In `wrangler.toml` set `ADMIN_EMAIL` (the first admin) and `ORG_NAME`.
 5. **Email codes:** make a free [Resend](https://resend.com) account, verify your domain, then
    `npx wrangler secret put RESEND_API_KEY` and `npx wrangler secret put MAIL_FROM` (e.g. `HOWPA <noreply@yourclub.org>`).
+   Zeffy (optional): `npx wrangler secret put ZEFFY_API_KEY` (Zeffy → Settings → Integrations → API key). Directors then pick
+   a Zeffy ticketing campaign to make each tournament from (`GET /zeffy/campaigns`); the key never reaches phones.
 6. **Google sign-in:** in Google Cloud Console create an OAuth client of type *Web application* with the redirect URI
    `https://<your worker address>/auth/google/callback`, then `npx wrangler secret put GOOGLE_CLIENT_ID` and
    `GOOGLE_CLIENT_SECRET`.

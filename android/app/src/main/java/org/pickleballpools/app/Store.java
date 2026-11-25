@@ -21,20 +21,62 @@ import java.util.List;
 final class Store {
     private Store() {}
 
-    static File file(Context c) { return new File(c.getFilesDir(), "tournament.json"); }
-
-    static Tournament load(Context c) {
-        try {
-            File f = file(c);
-            if (f.exists()) return fromJson(new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            android.util.Log.e("Store", "load failed", e);
-        }
-        return new Tournament();
+    /** Each tournament is its own file in tournaments/; the one open now is remembered in prefs "store". */
+    static File dir(Context c) {
+        File d = new File(c.getFilesDir(), "tournaments");
+        d.mkdirs();
+        return d;
     }
 
-    static void save(Context c, Tournament t) {
-        File f = file(c), tmp = new File(f.getPath() + ".tmp");
+    static File file(Context c, String key) { return new File(dir(c), key + ".json"); }
+
+    static String current(Context c) { return c.getSharedPreferences("store", Context.MODE_PRIVATE).getString("current", ""); }
+
+    static void setCurrent(Context c, String key) { c.getSharedPreferences("store", Context.MODE_PRIVATE).edit().putString("current", key).apply(); }
+
+    static String newKey() { return "t" + System.currentTimeMillis(); }
+
+    /** The open tournament (moving the single file older versions used into the list), or a new empty one. */
+    static Tournament load(Context c) {
+        File old = new File(c.getFilesDir(), "tournament.json");
+        if (old.exists()) {
+            String k = newKey();
+            if (old.renameTo(file(c, k))) setCurrent(c, k);
+        }
+        String k = current(c);
+        if (!k.isEmpty() && file(c, k).exists()) {
+            Tournament t = read(file(c, k));
+            if (t != null) return t;
+        }
+        return null;
+    }
+
+    static Tournament read(File f) {
+        try {
+            return fromJson(new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            android.util.Log.e("Store", "load failed " + f, e);
+            return null;
+        }
+    }
+
+    /** Every saved tournament, newest change first: [key, tournament]. */
+    static List<Object[]> all(Context c) {
+        File[] fs = dir(c).listFiles((d, n) -> n.endsWith(".json"));
+        List<Object[]> out = new java.util.ArrayList<>();
+        if (fs == null) return out;
+        java.util.Arrays.sort(fs, (x, y) -> Long.compare(y.lastModified(), x.lastModified()));
+        for (File f : fs) {
+            Tournament t = read(f);
+            if (t != null) out.add(new Object[]{f.getName().replaceAll("\\.json$", ""), t});
+        }
+        return out;
+    }
+
+    static void delete(Context c, String key) { file(c, key).delete(); }
+
+    static void save(Context c, String key, Tournament t) {
+        File f = file(c, key), tmp = new File(f.getPath() + ".tmp");
         try (FileOutputStream o = new FileOutputStream(tmp)) {
             o.write(toJson(t).toString(1).getBytes(StandardCharsets.UTF_8));
             o.getFD().sync();
@@ -49,7 +91,7 @@ final class Store {
                 .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
                 .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
                 .put("winBy", t.winBy).put("nextId", t.nextId).put("paymentLink", t.paymentLink)
-                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("startedAt", t.startedAt).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When);
+                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("startedAt", t.startedAt).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When).put("date", t.date).put("zeffyCampaign", t.zeffyCampaign);
         if (t.importColumns != null) {
             JSONArray c = new JSONArray();
             for (int i : t.importColumns) c.put(i);
@@ -100,6 +142,8 @@ final class Store {
         t.firstCourt = o.optInt("firstCourt", 1);
         t.round1When = o.optString("round1When");
         t.round2When = o.optString("round2When");
+        t.date = o.optString("date");
+        t.zeffyCampaign = o.optString("zeffyCampaign");
         JSONArray cols = o.optJSONArray("importColumns");
         if (cols != null) {
             t.importColumns = new int[cols.length()];

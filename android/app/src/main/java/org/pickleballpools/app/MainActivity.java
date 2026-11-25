@@ -76,6 +76,7 @@ public class MainActivity extends Activity {
     }
 
     Tournament t;
+    String key = ""; // which saved tournament file t is (Store)
     LinearLayout page;
     final Deque<Runnable> back = new ArrayDeque<>();
     Runnable current;
@@ -97,6 +98,7 @@ public class MainActivity extends Activity {
         setTheme(dark ? android.R.style.Theme_Material : android.R.style.Theme_Material_Light_DarkActionBar);
         super.onCreate(b);
         t = Store.load(this);
+        key = Store.current(this);
         ScrollView sv = new ScrollView(this);
         sv.setBackgroundColor(PAGE);
         page = new LinearLayout(this);
@@ -110,6 +112,7 @@ public class MainActivity extends Activity {
         live = new Live(this, account.api);
         captain = new CaptainScreen(this, live);
         receipts = new Receipts(this, account.api);
+        if (t == null) { key = Store.newKey(); t = clubDefaults(new Tournament()); Store.setCurrent(this, key); save(); }
         go(this::home, false);
         signInLink(getIntent());
     }
@@ -152,7 +155,7 @@ public class MainActivity extends Activity {
     void refresh() { current.run(); }
 
     void save() {
-        try { Store.save(this, t); } catch (RuntimeException e) { toast("Could not save! " + e.getMessage()); }
+        try { Store.save(this, key, t); } catch (RuntimeException e) { toast("Could not save! " + e.getMessage()); }
     }
 
     // ---------- Home ----------
@@ -162,7 +165,8 @@ public class MainActivity extends Activity {
         logo();
         title(t.name);
         int out = t.teams.size() - t.seeded().size();
-        note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage());
+        if (!t.date.isEmpty()) note(t.date);
+        note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage(t));
 
         captainButtons();
         if (live.directing()) {
@@ -217,7 +221,7 @@ public class MainActivity extends Activity {
         button("Appearance: " + THEMES[themeSetting()], v -> chooseTheme());
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
-        button("Start a new tournament", v -> newTournament());
+        button("All tournaments (new, switch)", v -> go(this::tournaments, true));
     }
 
     String liveLink() { return account.api.server() + "/t/" + t.serverId; }
@@ -312,7 +316,7 @@ public class MainActivity extends Activity {
         v.setOnClickListener(l);
     }
 
-    String stage() {
+    static String stage(Tournament t) {
         if (t.round1.isEmpty()) return "Adding teams";
         if (!Tournament.complete(t.round1)) return "Round 1 in progress";
         if (t.round2.isEmpty()) return "Round 1 finished";
@@ -689,25 +693,96 @@ public class MainActivity extends Activity {
         }
     }
 
-    void newTournament() {
-        new AlertDialog.Builder(this).setTitle("Start a new tournament?")
-                .setMessage("This erases all teams and scores on this device. Share the results first if you need them.\n\n"
-                        + "Practice tournament: 16 made-up teams, to try everything before a real event.")
-                .setPositiveButton("Empty", (d, w) -> { t = clubDefaults(new Tournament()); save(); back.clear(); refresh(); })
-                .setNeutralButton("Practice", (d, w) -> {
-                    Runnable local = () -> { t = clubDefaults(Tournament.practice(practiceRoster())); save(); back.clear(); refresh(); };
-                    if (!account.api.signedIn() || !(account.api.has("admin") || account.api.has("director"))) { local.run(); return; }
-                    // The club's practice roster from its server, if it has one
-                    account.api.call("GET", "/rosters/practice", null, r -> {
-                        org.json.JSONArray p = r.optJSONArray("players");
-                        if (p == null || p.length() < 8) { local.run(); return; }
-                        List<String> l = new ArrayList<>();
-                        for (int i = 0; i < p.length(); i++) l.add(p.optString(i));
-                        t = clubDefaults(Tournament.practice(l));
-                        save(); back.clear(); refresh();
-                    }, (net, msg) -> local.run());
-                })
-                .setNegativeButton("Cancel", null).show();
+    // ---------- Tournaments: several on one phone, each its own file ----------
+
+    void tournaments() {
+        page.removeAllViews();
+        title("Tournaments");
+        note("Tap one to open it. Press and hold to delete. Each keeps its own teams, pools and scores.");
+        for (Object[] e : Store.all(this)) {
+            String k = (String) e[0];
+            Tournament x = (Tournament) e[1];
+            boolean open = k.equals(key);
+            TextView v = card(text((open ? "▶ " : "") + x.name + (x.date.isEmpty() ? "" : "\n" + x.date)
+                    + "\n" + x.seeded().size() + " teams · " + stage(x) + (x.started() ? " · started" : "")
+                    + (x.zeffyCampaign.isEmpty() ? "" : " · Zeffy"), 17, open, INK));
+            if (open) v.setBackground(box(LIGHT));
+            v.setOnClickListener(w -> openTournament(k, x));
+            v.setOnLongClickListener(w -> {
+                if (open) { toast("Open another tournament first, then delete this one."); return true; }
+                confirm("Delete " + x.name + "?", "Its teams, pools and scores are erased from this phone. "
+                        + "Scores already sent to the server stay there.", () -> { Store.delete(this, k); refresh(); });
+                return true;
+            });
+        }
+        heading("New tournament");
+        if (account.api.signedIn() && (account.api.has("admin") || account.api.has("director")))
+            button("From a Zeffy registration…", v -> fromZeffy());
+        button("Empty", v -> create(clubDefaults(new Tournament())));
+        button("Practice (made-up teams)", v -> practice());
+    }
+
+    void openTournament(String k, Tournament x) {
+        key = k;
+        t = x;
+        Store.setCurrent(this, k);
+        back.clear();
+        current = null;
+        go(this::home, false);
+    }
+
+    void create(Tournament x) {
+        String k = Store.newKey();
+        t = x;
+        key = k;
+        save();
+        openTournament(k, x);
+    }
+
+    void practice() {
+        Runnable local = () -> create(clubDefaults(Tournament.practice(practiceRoster())));
+        if (!account.api.signedIn() || !(account.api.has("admin") || account.api.has("director"))) { local.run(); return; }
+        // The club's practice roster from its server, if it has one
+        account.api.call("GET", "/rosters/practice", null, r -> {
+            org.json.JSONArray p = r.optJSONArray("players");
+            if (p == null || p.length() < 8) { local.run(); return; }
+            List<String> l = new ArrayList<>();
+            for (int i = 0; i < p.length(); i++) l.add(p.optString(i));
+            create(clubDefaults(Tournament.practice(l)));
+        }, (net, msg) -> local.run());
+    }
+
+    /** The club's Zeffy events (through the server, which holds the key); picking one opens its tournament or makes it. */
+    void fromZeffy() {
+        toast("Asking Zeffy…");
+        account.api.call("GET", "/zeffy/campaigns", null, r -> {
+            org.json.JSONArray cs = r.optJSONArray("campaigns");
+            if (cs == null || cs.length() == 0) { toast("No Zeffy events found. Make a ticketing campaign in Zeffy first."); return; }
+            String[] names = new String[cs.length()];
+            for (int i = 0; i < cs.length(); i++) {
+                org.json.JSONObject c = cs.optJSONObject(i);
+                String d = day(c.optLong("start"));
+                names[i] = c.optString("title") + (d.isEmpty() ? "" : "\n" + d)
+                        + ("active".equals(c.optString("status")) ? "" : "  (" + c.optString("status") + ")");
+            }
+            new AlertDialog.Builder(this).setTitle("Which Zeffy event?").setItems(names, (dlg, w) -> {
+                org.json.JSONObject c = cs.optJSONObject(w);
+                for (Object[] e : Store.all(this))
+                    if (c.optString("id").equals(((Tournament) e[1]).zeffyCampaign)) { openTournament((String) e[0], (Tournament) e[1]); return; }
+                Tournament x = clubDefaults(new Tournament());
+                if (!c.optString("title").isEmpty()) x.name = c.optString("title");
+                x.date = day(c.optLong("start"));
+                x.zeffyCampaign = c.optString("id");
+                if (!c.optString("url").isEmpty()) x.paymentLink = c.optString("url");
+                create(x);
+                toast("Made " + x.name + ". Players will come in from Zeffy once the registration import is ready.");
+            }).setNegativeButton("Cancel", null).show();
+        }, (net, msg) -> toast(msg));
+    }
+
+    static String day(long epochSeconds) {
+        if (epochSeconds <= 0) return "";
+        return new java.text.SimpleDateFormat("EEE MMM d, yyyy", java.util.Locale.US).format(new java.util.Date(epochSeconds * 1000));
     }
 
     void share() {

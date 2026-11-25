@@ -55,6 +55,7 @@ async function route(req, env) {
 
   if (p === "/club" && m === "GET") return getClub(env);
   if (p === "/club" && m === "PUT") { need(me, "admin"); return putClub(req, env, me); }
+  if (p === "/zeffy/campaigns" && m === "GET") { need(me, "admin", "director"); return zeffyCampaigns(env); }
   const ro = p.match(/^\/rosters\/([\w-]{1,40})$/);
   if (ro && m === "GET") { need(me, "admin", "director"); return getRoster(env, ro[1]); }
   if (ro && m === "PUT") { need(me, "admin"); return putRoster(req, env, me, ro[1]); }
@@ -669,6 +670,31 @@ async function getImage(env, tid, rid) {
   const row = await env.DB.prepare("SELECT data FROM receipt_images WHERE id = ?").bind(rid).first();
   if (!row) throw new Http(404, "Photo missing.");
   return new Uint8Array(row.data);
+}
+
+// ------------------------------------------------------------------ Zeffy (registration)
+// The club's Zeffy campaigns, so a director can make a tournament from one. The API key (ZEFFY_API_KEY secret)
+// never leaves the server. Only ticketing/event campaigns that aren't archived are listed, newest date first.
+async function zeffyCampaigns(env) {
+  if (!env.ZEFFY_API_KEY) throw new Http(501, "Zeffy isn't connected on this server yet (ZEFFY_API_KEY).");
+  const base = env.ZEFFY_API_URL || "https://api.zeffy.com/api/v1";
+  const out = [];
+  let cursor = "";
+  for (let page = 0; page < 10; page++) {
+    const r = await fetch(base + "/campaigns?limit=100" + (cursor ? "&starting_after=" + encodeURIComponent(cursor) : ""),
+      { headers: { Authorization: "Bearer " + env.ZEFFY_API_KEY } });
+    if (!r.ok) { console.error("Zeffy", r.status, await r.text()); throw new Http(502, "Zeffy didn't answer (" + r.status + ")."); }
+    const d = await r.json();
+    for (const c of d.data || []) {
+      if (c.is_archived || c.deleted_at) continue;
+      if (c.type && !["ticketing", "event"].includes(c.type)) continue;
+      out.push({ id: c.id, title: c.title || "", status: c.status || "", start: c.start_date || 0, end: c.end_date || 0, url: c.url || "" });
+    }
+    if (!d.has_more || !d.next_cursor) break;
+    cursor = d.next_cursor;
+  }
+  out.sort((a, b) => b.start - a.start);
+  return json({ campaigns: out });
 }
 
 // ------------------------------------------------------------------ club settings and rosters
