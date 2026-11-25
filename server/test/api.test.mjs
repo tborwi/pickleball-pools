@@ -146,6 +146,18 @@ let club = await call("PUT", "/club", admin, { club: { name: "Heart of Wisconsin
 check(club.data.club.name === "Heart of Wisconsin PA" && club.data.club.winBy === "2", "admin saves club settings");
 check((await call("PUT", "/club", admin, { club: { winBy: "two" } })).status === 400 && (await call("PUT", "/club", admin, { club: { secret: "x" } })).status === 400, "bad or unknown settings refused");
 check((await call("GET", "/club", cap)).data.club.paymentLink === "https://pay.example/x", "staff read club settings");
+{ // Venues: admins edit, directors read; courts normalized
+  check((await call("PUT", "/venues", dir, { venue: { name: "X", courts: "1" } })).status === 403, "only admins edit venues");
+  check((await call("PUT", "/venues", admin, { venue: { name: "Bad", courts: "1-x" } })).status === 400, "bad courts refused");
+  const v = await call("PUT", "/venues", admin, { venue: { name: "Plover Courts", address: "Plover, WI", courts: "1-4, 6 6" } });
+  const pv = v.data.venues.find(x => x.name === "Plover Courts");
+  check(v.status === 200 && pv.courts.join(",") === "1,2,3,4,6", "venue courts " + (pv && pv.courts));
+  await call("PUT", "/venues", admin, { venue: { id: pv.id, name: "Plover Courts", courts: "1-8" } });
+  const dv = await call("GET", "/venues", dir);
+  check(dv.data.venues.length === 1 && dv.data.venues[0].courts.length === 8, "venue edited in place, directors see it");
+  const rm = await call("POST", "/venues/remove", admin, { id: pv.id });
+  check(rm.data.venues.length === 0, "venue removed");
+}
 { // Zeffy campaigns: directors and admins only, archived and non-event campaigns left out, newest first
   const z = await call("GET", "/zeffy/campaigns", dir);
   const ids = (z.data.campaigns || []).map(c => c.id).join(",");

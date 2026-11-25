@@ -85,6 +85,7 @@ public class MainActivity extends Activity {
     Live live;
     CaptainScreen captain;
     Receipts receipts;
+    Venues venues;
 
     @SuppressWarnings("deprecation")
     @Override protected void onActivityResult(int req, int res, Intent data) {
@@ -112,6 +113,7 @@ public class MainActivity extends Activity {
         live = new Live(this, account.api);
         captain = new CaptainScreen(this, live);
         receipts = new Receipts(this, account.api);
+        venues = new Venues(this);
         if (t == null) { key = Store.newKey(); t = clubDefaults(new Tournament()); Store.setCurrent(this, key); save(); }
         go(this::home, false);
         signInLink(getIntent());
@@ -167,6 +169,13 @@ public class MainActivity extends Activity {
         int out = t.teams.size() - t.seeded().size();
         if (!t.date.isEmpty()) note(t.date);
         note(t.seeded().size() + " teams" + (out > 0 ? " (" + out + " dropped out)" : "") + " · " + stage(t));
+        String courts = t.courts.isEmpty() ? "courts numbered from " + t.firstCourt : "courts " + Tournament.courtsText(t.courts);
+        String where = (t.venue.isEmpty() ? "No venue set" : t.venue) + " · " + courts;
+        if (t.started()) note("📍 " + where + " (locked)");
+        else smallButton("📍 " + where + "  (change)", v -> venues.pick());
+        List<org.pickleballpools.core.Pool> now = t.round2.isEmpty() ? t.round1 : t.round2;
+        String shortOf = org.pickleballpools.core.PrintSheets.shortOfCourts(t, now);
+        if (shortOf != null) text("⚠ " + shortOf, 16, true, RED);
 
         captainButtons();
         if (live.directing()) {
@@ -606,7 +615,8 @@ public class MainActivity extends Activity {
         EditText w1 = field(f, "Round 1 starts (e.g. Saturday 9:00am)", t.round1When, false);
         EditText w2 = field(f, "Round 2 starts", t.round2When, false);
         if (!t.round1.isEmpty()) pools.setEnabled(false);
-        if (t.started()) { to.setEnabled(false); by.setEnabled(false); adv.setEnabled(false); }
+        if (t.started()) { to.setEnabled(false); by.setEnabled(false); adv.setEnabled(false); court.setEnabled(false); }
+        if (!t.courts.isEmpty()) court.setEnabled(false); // the venue's courts are used instead
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Settings").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null).show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {

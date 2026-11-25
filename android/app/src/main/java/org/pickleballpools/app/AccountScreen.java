@@ -63,6 +63,7 @@ final class AccountScreen {
             a.button("People and roles", v -> a.go(this::people, true));
             a.button("Club settings", v -> clubSettings());
             a.button("Practice roster", v -> practiceRoster());
+            a.button("Venues and courts", v -> a.go(a.venues::manage, true));
         }
         if (api.has("admin") || api.has("director")) {
             if (a.t.serverId.isEmpty()) a.button("Put this tournament online (for court captains)", v -> putOnline());

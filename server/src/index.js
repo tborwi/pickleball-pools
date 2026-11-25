@@ -55,6 +55,9 @@ async function route(req, env) {
 
   if (p === "/club" && m === "GET") return getClub(env);
   if (p === "/club" && m === "PUT") { need(me, "admin"); return putClub(req, env, me); }
+  if (p === "/venues" && m === "GET") { need(me, "admin", "director"); return getVenues(env); }
+  if (p === "/venues" && m === "PUT") { need(me, "admin"); return putVenue(req, env, me); }
+  if (p === "/venues/remove" && m === "POST") { need(me, "admin"); return removeVenue(req, env, me); }
   if (p === "/zeffy/campaigns" && m === "GET") { need(me, "admin", "director"); return zeffyCampaigns(env); }
   const ro = p.match(/^\/rosters\/([\w-]{1,40})$/);
   if (ro && m === "GET") { need(me, "admin", "director"); return getRoster(env, ro[1]); }
@@ -670,6 +673,45 @@ async function getImage(env, tid, rid) {
   const row = await env.DB.prepare("SELECT data FROM receipt_images WHERE id = ?").bind(rid).first();
   if (!row) throw new Http(404, "Photo missing.");
   return new Uint8Array(row.data);
+}
+
+// ------------------------------------------------------------------ venues
+// Courts are a list like "1-8, 10, 12" (numbers 1-99). Stored as typed, normalized.
+function courtList(text) {
+  const out = [];
+  for (const part of String(text || "").split(/[,\s]+/).filter(Boolean)) {
+    const m = part.match(/^(\d{1,2})(?:-(\d{1,2}))?$/);
+    if (!m) throw new Http(400, "Courts: use numbers and ranges, like 1-8, 10");
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    if (a < 1 || b < a) throw new Http(400, "Courts: use numbers and ranges, like 1-8, 10");
+    for (let c = a; c <= b; c++) if (!out.includes(c)) out.push(c);
+  }
+  if (!out.length) throw new Http(400, "Give the venue at least one court.");
+  return out;
+}
+async function getVenues(env) {
+  const rows = (await env.DB.prepare("SELECT id, name, address, courts FROM venues ORDER BY name").all()).results;
+  return json({ venues: rows.map(r => ({ ...r, courts: r.courts.split(",").filter(Boolean).map(Number) })) });
+}
+async function putVenue(req, env, me) {
+  const v = (await body(req)).venue || {};
+  const name = String(v.name || "").trim().slice(0, 80);
+  if (!name) throw new Http(400, "Give the venue a name.");
+  const courts = courtList(Array.isArray(v.courts) ? v.courts.join(",") : v.courts);
+  const id = /^[\w-]{1,40}$/.test(v.id || "") ? v.id : crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO venues (id, name, address, courts, updated, updated_by) VALUES (?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET name = excluded.name, address = excluded.address, courts = excluded.courts, updated = excluded.updated, updated_by = excluded.updated_by")
+    .bind(id, name, String(v.address || "").trim().slice(0, 200), courts.join(","), nowS(), me.email).run();
+  await audit(env, "", me.email, "venue", "", { name, courts: courts.length });
+  return getVenues(env);
+}
+async function removeVenue(req, env, me) {
+  const id = String((await body(req)).id || "");
+  const r = await env.DB.prepare("SELECT name FROM venues WHERE id = ?").bind(id).first();
+  if (!r) throw new Http(404, "No such venue.");
+  await env.DB.prepare("DELETE FROM venues WHERE id = ?").bind(id).run();
+  await audit(env, "", me.email, "venue", "", { name: r.name, change: "removed" });
+  return getVenues(env);
 }
 
 // ------------------------------------------------------------------ Zeffy (registration)

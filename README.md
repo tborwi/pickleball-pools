@@ -30,8 +30,11 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
 8. **Print sheets.** For each round, the app makes three Excel files to print the night before (or email / save to
    Drive): the **schedule** (teams and which match is on which court each round), one **court captain sheet** per
    pool (game scores and initials), and one **results grid** per pool (every team against every other, record,
-   points, place). Set the first court number and start times in Settings. Printed again later, they include
-   the scores entered so far.
+   points, place). Set start times in Settings. Printed again later, they include the scores entered so far.
+9. **Venue and courts.** Tap the 📍 line on the home screen to pick where it's played. Admins keep the club's
+   venues and their courts (e.g. `1-8, 10`) under Account → **Venues and courts**; "Somewhere else" types the courts
+   by hand. Pools take courts in order; if a round needs more courts than the venue has, the app warns and pools share
+   courts. Without a venue, courts are numbered from the first court in Settings. The venue locks at **Start**.
 
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
 points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it or sign in.

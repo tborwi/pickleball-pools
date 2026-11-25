@@ -112,3 +112,14 @@ CREATE TABLE IF NOT EXISTS rosters (
   updated INTEGER NOT NULL,
   updated_by TEXT NOT NULL
 );
+
+-- Venues the club plays at, each with the courts it has (e.g. "1-8, 10"). A tournament copies its venue's
+-- courts when the director picks it; the copy is locked once the tournament starts.
+CREATE TABLE IF NOT EXISTS venues (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '',
+  courts TEXT NOT NULL DEFAULT '',
+  updated INTEGER NOT NULL,
+  updated_by TEXT NOT NULL DEFAULT ''
+);

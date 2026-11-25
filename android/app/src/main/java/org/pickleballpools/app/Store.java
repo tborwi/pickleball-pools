@@ -91,7 +91,7 @@ final class Store {
                 .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
                 .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
                 .put("winBy", t.winBy).put("nextId", t.nextId).put("paymentLink", t.paymentLink)
-                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("startedAt", t.startedAt).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When).put("date", t.date).put("zeffyCampaign", t.zeffyCampaign);
+                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("startedAt", t.startedAt).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When).put("date", t.date).put("zeffyCampaign", t.zeffyCampaign).put("venue", t.venue).put("courts", new JSONArray(t.courts));
         if (t.importColumns != null) {
             JSONArray c = new JSONArray();
             for (int i : t.importColumns) c.put(i);
@@ -144,6 +144,9 @@ final class Store {
         t.round2When = o.optString("round2When");
         t.date = o.optString("date");
         t.zeffyCampaign = o.optString("zeffyCampaign");
+        t.venue = o.optString("venue");
+        JSONArray cs = o.optJSONArray("courts");
+        for (int i = 0; cs != null && i < cs.length(); i++) t.courts.add(cs.optInt(i));
         JSONArray cols = o.optJSONArray("importColumns");
         if (cols != null) {
             t.importColumns = new int[cols.length()];

@@ -25,6 +25,8 @@ public final class Tournament {
 
     public String serverId = "";
     public long liveSeq;             // last live score received from the server     // id on the accounts server once put online (for court captains)
+    public String venue = "";        // where it's played (picked from the club's venues, or typed)
+    public final List<Integer> courts = new ArrayList<>(); // the venue's courts; empty = numbered on from firstCourt
     public int firstCourt = 1;       // printed sheets: courts are numbered on from here, pool by pool
     public String round1When = "", round2When = ""; // printed sheets, e.g. "Saturday 9:00am"
 
@@ -311,5 +313,31 @@ public final class Tournament {
             for (Standings.Row r : Standings.of(p, ids)) if (r.place <= finalistsPerPool && !r.withdrawn) f.add(r.team);
         }
         return f;
+    }
+
+    /** "1-8, 10" -> [1..8, 10]; null if it isn't a list of court numbers (1-99). */
+    public static List<Integer> parseCourts(String text) {
+        List<Integer> out = new ArrayList<>();
+        for (String part : text.trim().split("[,\\s]+")) {
+            if (part.isEmpty()) continue;
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,2})(?:-(\\d{1,2}))?").matcher(part);
+            if (!m.matches()) return null;
+            int a = Integer.parseInt(m.group(1)), b = m.group(2) == null ? a : Integer.parseInt(m.group(2));
+            if (a < 1 || b < a) return null;
+            for (int c = a; c <= b; c++) if (!out.contains(c)) out.add(c);
+        }
+        return out;
+    }
+
+    /** [1,2,3,4,6] -> "1-4, 6". */
+    public static String courtsText(List<Integer> courts) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < courts.size(); i++) {
+            int j = i;
+            while (j + 1 < courts.size() && courts.get(j + 1) == courts.get(j) + 1) j++;
+            b.append(b.length() == 0 ? "" : ", ").append(courts.get(i)).append(j > i ? "-" + courts.get(j) : "");
+            i = j;
+        }
+        return b.toString();
     }
 }

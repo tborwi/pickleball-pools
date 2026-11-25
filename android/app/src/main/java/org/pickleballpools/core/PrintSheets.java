@@ -14,7 +14,9 @@ import java.util.Map;
  *   <li>{@link #resultsGrid}: one page per pool, every team against every other, with record, points and place.
  *       Filled in from the app when scores have been entered, blank otherwise.</li>
  * </ol>
- * Courts: each pool gets as many courts as it plays matches at once, numbered on from {@link Tournament#firstCourt}.
+ * Courts: each pool gets as many courts as it plays matches at once, taken in order from the venue's courts
+ * ({@link Tournament#courts}), or numbered on from {@link Tournament#firstCourt} when no venue is set. If the venue has
+ * too few, courts are shared (a match waits for its court); {@link #shortOfCourts} warns about that.
  */
 public final class PrintSheets {
     private PrintSheets() {}
@@ -22,13 +24,29 @@ public final class PrintSheets {
     /** Courts for each pool of a round, in order. courts.get(p)[k] = court number for the k-th match of a round. */
     public static List<int[]> courts(Tournament t, List<Pool> round) {
         List<int[]> out = new ArrayList<>();
-        int next = t.firstCourt;
+        int next = 0;
         for (Pool p : round) {
             int[] c = new int[perRound(p)];
-            for (int k = 0; k < c.length; k++) c[k] = next++;
+            for (int k = 0; k < c.length; k++, next++)
+                c[k] = t.courts.isEmpty() ? t.firstCourt + next : t.courts.get(next % t.courts.size());
             out.add(c);
         }
         return out;
+    }
+
+    /** Courts a round needs so every pool plays at once. */
+    public static int courtsNeeded(List<Pool> round) {
+        int n = 0;
+        for (Pool p : round) n += perRound(p);
+        return n;
+    }
+
+    /** Null if the venue has enough courts for this round, else a warning for the director. */
+    public static String shortOfCourts(Tournament t, List<Pool> round) {
+        int need = courtsNeeded(round), have = t.courts.size();
+        if (t.courts.isEmpty() || need <= have) return null;
+        return "This round needs " + need + " courts at once but " + (t.venue.isEmpty() ? "the venue" : t.venue) + " has " + have
+                + ". Some pools share courts, so those matches wait for a free court.";
     }
 
     /** The court of every match in a round, as on the printed schedule (k-th match of a pool round -> its k-th court). */
@@ -91,7 +109,7 @@ public final class PrintSheets {
         for (int[] c : courts) maxCourts = Math.max(maxCourts, c.length);
         for (int k = 0; k < Math.max(maxCourts, 4); k++) s.width(5 + k, 14);
         int r = 0;
-        s.set(r, 0, t.name.toUpperCase(Locale.US), Xlsx.TITLE).height(r, 20);
+        s.set(r, 0, (t.name + (t.venue.isEmpty() ? "" : " - " + t.venue)).toUpperCase(Locale.US), Xlsx.TITLE).height(r, 20);
         r += 2;
         for (int i = 0; i < round.size(); i++) {
             Pool p = round.get(i);

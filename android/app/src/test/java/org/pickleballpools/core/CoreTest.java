@@ -145,6 +145,19 @@ public final class CoreTest {
         m.games.add(new int[]{11, 5}); m.games.add(new int[]{11, 9});
         List<int[]> c = PrintSheets.courts(t, t.round1);
         check(c.size() == 4 && c.get(0)[0] == 7 && c.get(0)[1] == 8 && c.get(3)[1] == 14, "4-team pools use 2 courts each, numbered from 7");
+        check(PrintSheets.shortOfCourts(t, t.round1) == null, "no venue: never short of courts");
+        check(Tournament.parseCourts("1-4, 6 6,9").toString().equals("[1, 2, 3, 4, 6, 9]"), "parse courts");
+        check(Tournament.parseCourts("1-x") == null && Tournament.parseCourts("4-2") == null, "bad courts refused");
+        check(Tournament.courtsText(Tournament.parseCourts("1-4,6,8-9")).equals("1-4, 6, 8-9"), "courts text");
+        t.courts.addAll(Tournament.parseCourts("3-10"));
+        c = PrintSheets.courts(t, t.round1);
+        check(c.get(0)[0] == 3 && c.get(3)[1] == 10 && PrintSheets.shortOfCourts(t, t.round1) == null, "venue courts 3-10 used in order");
+        t.courts.clear(); t.courts.addAll(Tournament.parseCourts("1-6")); t.venue = "Gym";
+        c = PrintSheets.courts(t, t.round1);
+        check(c.get(3)[0] == 1 && c.get(3)[1] == 2, "6 courts for 8 matches: last pool shares courts 1-2");
+        String w = PrintSheets.shortOfCourts(t, t.round1);
+        check(w != null && w.contains("needs 8") && w.contains("Gym has 6"), "short of courts warning: " + w);
+        t.courts.clear(); t.venue = "";
         try {
             String dir = System.getenv("SHEETS_OUT");
             for (String[] n : new String[][]{{"schedule"}, {"captains"}, {"grid"}}) {
