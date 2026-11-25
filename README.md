@@ -23,6 +23,11 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    point differential, points scored) and snaked again. Another round robin.
 5. **Finals.** The top team of each Championship pool is shown as qualified for the Finals.
 6. **Share.** One button sends all standings as text (email, text message, Facebook post…).
+7. **Print sheets.** For each round, the app makes three Excel files to print the night before (or email / save to
+   Drive): the **schedule** (teams and which match is on which court each round), one **court captain sheet** per
+   pool (game scores and initials), and one **results grid** per pool (every team against every other, record,
+   points, place). Set the first court number and start times in Settings. Printed again later, they include
+   the scores entered so far.
 
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
 points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it.
@@ -94,6 +99,7 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `core/Tournament.java` | Seeding, snake order, Round 1 → Round 2, finalists |
 | `core/Standings.java` | Standings and the tiebreak procedure |
 | `core/Pool.java`, `Match.java`, `Team.java` | Round-robin schedule, match result, team |
+| `core/PrintSheets.java`, `Xlsx.java` | The three printable Excel sheets, and a tiny .xlsx writer (no library) |
 | `core/Rules.java` | Score validation (to 11, win by 2, best of 3) |
 | `core/Registration.java`, `Player.java` | Reading payment exports (CSV), pairing players by DUPR ID |
 | `app/MainActivity.java` | All screens, built in code with big text and buttons |

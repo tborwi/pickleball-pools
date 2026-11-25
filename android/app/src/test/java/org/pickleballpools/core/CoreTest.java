@@ -137,6 +137,28 @@ public final class CoreTest {
         check(champ == 8 && poolOf(t, t.round2, c.id) == null, "redo Round 2: next team moved up, still 8");
     }
 
+    static void printSheets() {
+        Tournament t = sixteenTeams();
+        t.firstCourt = 7;
+        t.startRound1();
+        Match m = t.round1.get(0).matches.get(0);
+        m.games.add(new int[]{11, 5}); m.games.add(new int[]{11, 9});
+        List<int[]> c = PrintSheets.courts(t, t.round1);
+        check(c.size() == 4 && c.get(0)[0] == 7 && c.get(0)[1] == 8 && c.get(3)[1] == 14, "4-team pools use 2 courts each, numbered from 7");
+        try {
+            String dir = System.getenv("SHEETS_OUT");
+            for (String[] n : new String[][]{{"schedule"}, {"captains"}, {"grid"}}) {
+                Xlsx x = n[0].equals("schedule") ? PrintSheets.schedule(t, t.round1)
+                        : n[0].equals("captains") ? PrintSheets.captainSheets(t, t.round1) : PrintSheets.resultsGrid(t, t.round1);
+                java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+                x.write(b);
+                check(b.size() > 1000, n[0] + " workbook written");
+                if (dir != null) java.nio.file.Files.write(java.nio.file.Paths.get(dir, n[0] + ".xlsx"), b.toByteArray());
+            }
+        } catch (java.io.IOException e) { check(false, "sheets: " + e); }
+        check(Xlsx.ref(0, 0).equals("A1") && Xlsx.ref(2, 27).equals("AB3"), "cell references");
+    }
+
     static void registration() {
         String csv = "id,Customer Name,Customer Email,Status,Your DUPR ID (custom),Partner name,Partner DUPR ID\n"
                 + "pi_1,\"Smith, Pat\",pat@x.org,Paid,ab12cd,Lee Jones,EF34GH\n"
@@ -236,6 +258,7 @@ public final class CoreTest {
         registration();
         withdrawals();
         tiebreakContinues();
+        printSheets();
 
         System.out.println(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);

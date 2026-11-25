@@ -21,6 +21,7 @@ import android.widget.Toast;
 
 import org.pickleballpools.core.Match;
 import org.pickleballpools.core.Pool;
+import org.pickleballpools.core.PrintSheets;
 import org.pickleballpools.core.Rules;
 import org.pickleballpools.core.Standings;
 import org.pickleballpools.core.Team;
@@ -120,6 +121,7 @@ public class MainActivity extends Activity {
         }
 
         heading("More");
+        if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
         button("Settings", v -> settings());
         button("Start a new tournament", v -> newTournament());
@@ -405,6 +407,9 @@ public class MainActivity extends Activity {
         EditText fin = field(f, "Teams per Championship pool to the Finals", String.valueOf(t.finalistsPerPool), true);
         EditText to = field(f, "Games are played to", String.valueOf(t.pointsToWin), true);
         EditText by = field(f, "Win by (USA Pickleball: 2)", String.valueOf(t.winBy), true);
+        EditText court = field(f, "Printed sheets: first court number", String.valueOf(t.firstCourt), true);
+        EditText w1 = field(f, "Round 1 starts (e.g. Saturday 9:00am)", t.round1When, false);
+        EditText w2 = field(f, "Round 2 starts", t.round2When, false);
         if (!t.round1.isEmpty()) pools.setEnabled(false);
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Settings").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null).show();
@@ -415,6 +420,11 @@ public class MainActivity extends Activity {
                 int nf = Integer.parseInt(fin.getText().toString().trim());
                 int nt = Integer.parseInt(to.getText().toString().trim());
                 int nb = Integer.parseInt(by.getText().toString().trim());
+                int nc = Integer.parseInt(court.getText().toString().trim());
+                if (nc < 1) throw new NumberFormatException();
+                t.firstCourt = nc;
+                t.round1When = w1.getText().toString().trim();
+                t.round2When = w2.getText().toString().trim();
                 if (np < 1 || np > 26 || na < 1 || nf < 1 || nt < 1 || nb < 1) throw new NumberFormatException();
                 t.name = name.getText().toString().trim().isEmpty() ? t.name : name.getText().toString().trim();
                 t.poolCount = np; t.advancePerPool = na; t.finalistsPerPool = nf; t.pointsToWin = nt; t.winBy = nb;
@@ -425,6 +435,39 @@ public class MainActivity extends Activity {
                 toast("Please enter whole numbers (1 or more)");
             }
         });
+    }
+
+    /** The three printable sheets for a round (schedule, court captain sheets, results grid), shared as Excel files. */
+    void printSheets() {
+        if (t.round2.isEmpty()) { printSheets(t.round1, "Round 1"); return; }
+        new AlertDialog.Builder(this).setTitle("Print sheets for which round?")
+                .setItems(new String[]{"Round 1", "Round 2"}, (d, w) -> printSheets(w == 0 ? t.round1 : t.round2, w == 0 ? "Round 1" : "Round 2"))
+                .show();
+    }
+
+    void printSheets(List<Pool> round, String name) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "sheets");
+            dir.mkdirs();
+            for (java.io.File old : dir.listFiles()) old.delete();
+            String base = (t.name + " " + name).replaceAll("[^A-Za-z0-9 _-]", "").trim();
+            ArrayList<android.net.Uri> uris = new ArrayList<>();
+            org.pickleballpools.core.Xlsx[] books = {PrintSheets.schedule(t, round), PrintSheets.captainSheets(t, round), PrintSheets.resultsGrid(t, round)};
+            String[] names = {"1 Schedule", "2 Court captain sheets", "3 Results grid"};
+            for (int i = 0; i < 3; i++) {
+                java.io.File f = new java.io.File(dir, names[i] + " - " + base + ".xlsx");
+                try (java.io.FileOutputStream os = new java.io.FileOutputStream(f)) { books[i].write(os); }
+                uris.add(SheetProvider.uri(this, f));
+            }
+            Intent i = new Intent(Intent.ACTION_SEND_MULTIPLE)
+                    .setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                    .putExtra(Intent.EXTRA_SUBJECT, t.name + " " + name + " sheets")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(i, "Send the 3 sheets to email, Drive or a printer app"));
+        } catch (Exception e) {
+            toast("Couldn't make the sheets: " + e.getMessage());
+        }
     }
 
     void newTournament() {
