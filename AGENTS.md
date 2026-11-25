@@ -7,7 +7,7 @@
   directors, often older adults: big text, big buttons, plain words, confirm before anything destructive.
 - Tournament rules live in `android/app/src/main/java/org/pickleballpools/core/` and must stay free of Android code.
   Change a rule -> add a check to `CoreTest.java` and run `./test.sh`.
-- UI is `app/MainActivity.java`; storage is one JSON file (`app/Store.java`). New fields need `optX` defaults
+- UI is `app/MainActivity.java`; storage is one JSON file per tournament (`app/Store.java`). New fields need `optX` defaults
   when reading, so older saved tournaments still open.
 - Build with `android/build.sh` (Docker) or Android Studio. Bump `versionCode` and `versionName` for every release.
 - Never commit signing keys or `keystore.properties`.
