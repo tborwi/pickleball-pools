@@ -80,7 +80,7 @@ final class Live {
         Tournament t = a.t;
         JSONObject d = new JSONObject();
         try {
-            d.put("name", t.name).put("pointsToWin", t.pointsToWin).put("winBy", t.winBy);
+            d.put("name", t.name).put("pointsToWin", t.pointsToWin).put("winBy", t.winBy).put("startedAt", t.startedAt);
             JSONArray ms = new JSONArray();
             Map<String, Team> ids = t.byId();
             for (List<Pool> round : List.of(t.round1, t.round2)) {

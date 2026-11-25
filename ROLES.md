@@ -33,6 +33,8 @@ no sign-in) and are **emailed** the photo of each score sheet from their matches
 - **Who else sees photos:** the tournament's directors and admins, and the captain of that court, in the app.
 - **Live scores page** (`/t/<tournament id>`): team names, pools, standings and scores, updated every 20 seconds.
   No emails, DUPR IDs or photos are on it. Standings are worked out on the director's phone (same tiebreak rules).
+- **Start email:** when the director presses Start, every player with an email gets the live scores link and their
+  team's schedule (pool, and for each round the court and opponent). Sent once.
 - **Results email:** the director's **Email the results to all players** sends standings, Finals qualifiers and the
   live page link, one email per player.
 

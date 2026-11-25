@@ -362,7 +362,34 @@ async function putLive(req, env, me, id) {
   await env.DB.prepare("INSERT INTO live (tournament_id, data, updated) VALUES (?, ?, ?) " +
     "ON CONFLICT(tournament_id) DO UPDATE SET data = excluded.data, updated = excluded.updated").bind(id, text, nowS()).run();
   await audit(env, id, me.email, "publish", "", { matches: d.matches.length });
-  return json({ ok: true });
+  const emailed = d.startedAt > 1 ? await startEmail(env, me, id, d, new URL(req.url)) : 0;
+  return json({ ok: true, emailed });
+}
+
+/**
+ * Once, when the pools first arrive with the tournament started: each team's players get the live scores link and
+ * their own schedule (pool, round, court, opponent). Sent again only if it never went out (one "start" entry in History).
+ */
+async function startEmail(env, me, id, d, url) {
+  const done = await env.DB.prepare("SELECT id FROM audit WHERE tournament_id = ? AND action = 'email' AND match_key = 'start' LIMIT 1").bind(id).first();
+  if (done) return 0;
+  const base = publicBase(env, url), name = d.name || "Tournament";
+  let sent = 0, any = false;
+  for (const team of Object.keys(d.who || {})) {
+    const to = playerEmails(d, [team]);
+    if (!to.length) continue;
+    any = true;
+    const mine = d.matches.filter(x => x.aId === team || x.bId === team).sort((x, y) => x.round - y.round);
+    if (!mine.length) continue; // withdrawn team
+    const label = mine[0].aId === team ? mine[0].a : mine[0].b;
+    const lines = mine.map(x => `  Round ${x.round}, court ${x.court}: vs ${x.aId === team ? x.b : x.a}`).join("\n");
+    sent += await mailEach(env, id, me.email, to, `${name} has started: live scores`,
+      `${name} has started. Good luck!\n\nLive scores and standings (updates by itself):\n${base}/t/${id}\n\n` +
+      `Your team: ${label} (${mine[0].stage}, ${mine[0].pool})\n${lines}\n\n` +
+      `After each match you'll get an email with the photo of the score sheet.`, "start");
+  }
+  if (!any) await audit(env, id, me.email, "email", "start", { to: [], subject: "start (no player emails)", sent: 0 });
+  return sent;
 }
 
 /** What staff may see: "all" (admin, director) or "courts" (court captain: their courts). Throws 403 otherwise. */

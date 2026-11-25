@@ -209,7 +209,8 @@ public class MainActivity extends Activity {
         for (Pool p : t.round1) n += p.matches.size();
         confirm("Start the tournament?", t.round1.size() + " pools, " + t.seeded().size() + " teams, " + n + " matches.\n\n"
                         + "This locks the teams and pools: no more redoing pools or adding teams. Teams can still drop out "
-                        + "(USA Pickleball 15.B.4.a). Score entry opens" + (live.directing() ? ", and court captains see their matches." : "."),
+                        + "(USA Pickleball 15.B.4.a). Score entry opens" + (live.directing()
+                        ? ", court captains see their matches, and every player with an email is sent the live scores link and their schedule." : "."),
                 () -> {
                     String err = t.start(System.currentTimeMillis());
                     if (err != null) { toast(err); return; }

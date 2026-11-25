@@ -66,7 +66,13 @@ const live = { pointsToWin: 11, winBy: 2, matches: [
   who: { t1: { email: ["player1@example.com"], dupr: ["AAA111"] }, t2: { email: [], dupr: ["BBB222"] } } };
 check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t1:t4", games: [[11, 5], [11, 9]] })).status === 400, "no scores before pools are published");
 check((await call("PUT", `/tournaments/${tid}/live`, cap, { data: live })).status === 403, "captain can't publish pools");
-check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).status === 200, "director publishes pools");
+check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).data.emailed === 0, "director publishes pools (not started: no email)");
+live.startedAt = 1795874400000;
+check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).data.emailed === 1, "on Start, players with an email get the live link");
+check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).data.emailed === 0, "start email goes out only once");
+const st = (await call("GET", `/tournaments/${tid}/audit`, dir)).data.entries.find(e => e.key === "start");
+check(st && st.detail.to[0] === "player1@example.com" && st.detail.text.includes(`/t/${tid}`) && st.detail.text.includes("Round 1, court 7: vs 4 Ba/Bruckbauer"),
+  "start email has the live link and the team's own schedule");
 let lv = await call("GET", `/tournaments/${tid}/live`, cap);
 check(lv.data.data.matches.length === 1 && lv.data.data.matches[0].court === 7, "captain of courts 7,8 sees only the court 7 match");
 check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t2:t3", games: [[11, 5], [11, 9]] })).status === 403, "captain can't score court 9");
