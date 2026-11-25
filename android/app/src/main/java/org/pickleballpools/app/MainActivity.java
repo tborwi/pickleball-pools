@@ -626,8 +626,12 @@ public class MainActivity extends Activity {
     }
 
     void newTournament() {
-        confirm("Start a new tournament?", "This erases all teams and scores on this device. Share the results first if you need them.",
-                () -> { t = new Tournament(); save(); back.clear(); refresh(); });
+        new AlertDialog.Builder(this).setTitle("Start a new tournament?")
+                .setMessage("This erases all teams and scores on this device. Share the results first if you need them.\n\n"
+                        + "Practice tournament: 16 made-up teams, to try everything before a real event.")
+                .setPositiveButton("Empty", (d, w) -> { t = new Tournament(); save(); back.clear(); refresh(); })
+                .setNeutralButton("Practice", (d, w) -> { t = Tournament.practice(); save(); back.clear(); refresh(); })
+                .setNegativeButton("Cancel", null).show();
     }
 
     void share() {

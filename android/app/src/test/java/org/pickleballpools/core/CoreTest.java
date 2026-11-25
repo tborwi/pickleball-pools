@@ -175,6 +175,12 @@ public final class CoreTest {
         Map<String, String> sm = Names.forTournament(same);
         check(Names.team(sm, s1).equals("Pat L. / Sam R.") && Names.team(sm, s2).equals("Ann F. / Pat L. (2)"), "same full name: numbered (2)");
         check(Names.number(Names.player(sm, s2, 2)) == 2 && Names.number(Names.player(sm, s1, 1)) == 0, "number of a numbered player");
+        Tournament pr = Tournament.practice();
+        pr.startRound1();
+        Map<String, String> pn = Names.forTournament(pr);
+        check(pr.teams.size() == 16 && pr.round1.size() == 4 && pr.teams.get(0).id.equals("PR0001+PR0002"), "practice tournament: 16 teams, 4 pools");
+        check(Names.player(pn, pr.teams.get(15), 2).equals("Pat L. (2)") && Names.player(pn, pr.teams.get(0), 1).equals("Pat L."),
+                "practice tournament shows the namesake and collision rules");
         Tournament ti = new Tournament();
         Team d1 = ti.addTeam("q2zx9p", "L8EW8W"), d2 = ti.addTeam("L8EW8W", "Q2ZX9P"), d3 = ti.addTeam("", "AB12CD");
         check(d1.id.equals("L8EW8W+Q2ZX9P"), "team id is the sorted DUPR ID pair");

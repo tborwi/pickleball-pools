@@ -60,6 +60,31 @@ public final class Tournament {
         return "r" + (round2.contains(p) ? 2 : 1) + ":" + p.name + ":" + m.a + ":" + m.b;
     }
 
+    /**
+     * A practice tournament: 16 made-up teams (names, ratings, DUPR IDs) so a director can try everything before
+     * a real event. Two players share a name on purpose (shown "Pat L." and "Pat L. (2)" in public).
+     */
+    public static Tournament practice() {
+        String[] first = {"Pat", "Sam", "Alex", "Jordan", "Casey", "Morgan", "Riley", "Taylor", "Jamie", "Drew", "Quinn", "Avery",
+                "Reese", "Blake", "Cameron", "Dana", "Emerson", "Finley", "Harper", "Hayden", "Jesse", "Kendall", "Logan", "Parker",
+                "Robin", "Sage", "Shawn", "Skyler", "Terry", "Lee", "Kim", "Pat"};
+        String[] last = {"Lee", "Ruiz", "Nowak", "Olson", "Schmidt", "Kowalski", "Berg", "Hansen", "Meyer", "Larson", "Wagner",
+                "Novak", "Fischer", "Jensen", "Becker", "Krause", "Lund", "Peters", "Weber", "Zimmer", "Brandt", "Dahl", "Ernst",
+                "Frank", "Gruber", "Hoff", "Iverson", "Jung", "Keller", "Lewis", "Moss", "Lee"};
+        Tournament t = new Tournament();
+        t.name = "Practice Tournament";
+        java.util.Random r = new java.util.Random(7);
+        for (int i = 0; i < 16; i++) {
+            String id1 = String.format("PR%04d", 2 * i + 1), id2 = String.format("PR%04d", 2 * i + 2);
+            Team x = t.addTeam(id1, id2);
+            x.player1 = first[2 * i] + " " + last[2 * i];
+            x.player2 = first[2 * i + 1] + " " + last[2 * i + 1];
+            x.dupr1 = Math.round((2.9 + r.nextDouble() * 0.9) * 1000) / 1000.0;
+            x.dupr2 = Math.round((2.9 + r.nextDouble() * 0.9) * 1000) / 1000.0;
+        }
+        return t;
+    }
+
     /** A new team with a numbered id (used when the players' DUPR IDs aren't known). */
     public Team addTeam() {
         Team t = new Team("t" + nextId++);
