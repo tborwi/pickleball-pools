@@ -97,24 +97,31 @@ check((await upload(cap, "r1:A:t2:t3", jpeg)).status === 403, "captain can't add
 check((await upload(cap, "r1:A:t1:t4", new Uint8Array(2000), "image/jpeg")).status === 400, "non-JPEG refused");
 lv = await call("GET", `/tournaments/${tid}/live`, cap);
 check(!lv.data.data.who && lv.data.receipts.length === 1, "captain sees the receipt, not players' emails/DUPR IDs");
-check((await call("GET", `/tournaments/${tid}/live?view=all`, cap)).data.data.matches.length === 2, "captain can view all live scores");
+check(rc.data.emailed === 1, "the match's players with an email get the receipt (1 of them has one)");
 
+// Players have no accounts: public page + emailed links only
 const p1 = await emailSignIn("player1@example.com");
-const myT = (await call("GET", "/tournaments", p1)).data.tournaments;
-check(myT.length === 1 && myT[0].playing, "player finds the tournament they play in (by email)");
-lv = await call("GET", `/tournaments/${tid}/live`, p1);
-check(lv.data.view === "player" && lv.data.data.matches.length === 2 && !lv.data.data.who, "player sees every match, no private data");
-check(lv.data.scores.length >= 1 && lv.data.receipts.length === 1 && lv.data.myTeams[0] === "t1", "player sees live scores and their match's receipt");
-const img = await fetch(`${BASE}/tournaments/${tid}/receipts/${rc.data.id}`, { headers: { Authorization: "Bearer " + p1 } });
-check(img.status === 200 && img.headers.get("content-type") === "image/jpeg" && (await img.arrayBuffer()).byteLength === 2000, "player opens the receipt photo");
-check((await call("POST", `/tournaments/${tid}/scores`, p1, { key: "r1:A:t1:t4", games: [[11, 1], [11, 1]] })).status === 403, "player can't enter scores");
-
-const p2 = await emailSignIn("player2@example.com");
-check((await call("GET", `/tournaments/${tid}/live`, p2)).status === 403, "someone not playing can't see the tournament");
-await call("POST", "/me", p2, { duprId: "bbb222" });
-lv = await call("GET", `/tournaments/${tid}/live`, p2);
-check(lv.status === 200 && lv.data.receipts.length === 0, "player matched by DUPR ID sees scores but not other matches' receipts");
-check((await fetch(`${BASE}/tournaments/${tid}/receipts/${rc.data.id}`, { headers: { Authorization: "Bearer " + p2 } })).status === 403, "player can't open another match's receipt");
+check((await call("GET", "/tournaments", p1)).data.tournaments.length === 0, "a player who signs in sees no tournaments");
+check((await call("GET", `/tournaments/${tid}/live`, p1)).status === 403, "players can't use the staff live view");
+const pub = await call("GET", `/public/${tid}`);
+check(pub.status === 200 && pub.data.matches.length === 2 && pub.data.scores["r1:A:t1:t4"]?.length === 3, "public live scores, no sign-in");
+check(!JSON.stringify(pub.data).includes("player1@example.com") && !JSON.stringify(pub.data).includes("AAA111") && !("aId" in pub.data.matches[0]),
+  "public data has no emails, DUPR IDs or team ids");
+const page = await fetch(`${BASE}/t/${tid}`);
+check(page.status === 200 && (await page.text()).includes("Autumn Paddle Showdown"), "public live page (HTML)");
+check((await call("GET", "/public/nosuchtournament")).status === 404, "unknown tournament link: 404");
+let au0 = (await call("GET", `/tournaments/${tid}/audit`, dir)).data.entries;
+const mail = au0.find(e => e.action === "email" && e.key === "r1:A:t1:t4");
+check(mail && mail.detail.to[0] === "player1@example.com" && mail.detail.text.includes("11-5, 9-11, 12-10"), "receipt email has the score and goes to the player");
+const link = mail.detail.text.match(/\/r\/([\w-]+)/)[1];
+const img = await fetch(`${BASE}/r/${link}`);
+check(img.status === 200 && img.headers.get("content-type") === "image/jpeg" && (await img.arrayBuffer()).byteLength === 2000, "photo opens from the emailed link, no sign-in");
+check((await fetch(`${BASE}/r/wrong-token`)).status === 404, "a made-up photo link doesn't work");
+check((await fetch(`${BASE}/tournaments/${tid}/receipts/${rc.data.id}`, { headers: { Authorization: "Bearer " + p1 } })).status === 403, "players can't fetch photos by id");
+check((await call("POST", `/tournaments/${tid}/results-email?dry=1`, dir)).data.recipients === 1, "results email: count recipients first");
+check((await call("POST", `/tournaments/${tid}/results-email`, cap)).status === 403, "captain can't send the results email");
+const res = await call("POST", `/tournaments/${tid}/results-email`, dir);
+check(res.data.sent === 1, "director emails the results");
 
 check((await call("POST", `/tournaments/${tid}/events`, dir, { action: "started" })).status === 200, "director logs Start");
 const au = await call("GET", `/tournaments/${tid}/audit`, dir);
@@ -133,13 +140,13 @@ check((await call("GET", "/tournaments", cash)).data.tournaments.length === 1, "
 check((await call("POST", "/tournaments", cash, { name: "Y" })).status === 403, "treasurer can't create a tournament");
 
 const users = await call("GET", "/admin/users", admin);
-check(users.data.users.length === 6, "admin lists 6 users");
+check(users.data.users.length === 5, "admin lists 5 users");
 check((await call("DELETE", "/admin/roles", admin, { email: "admin@example.com", role: "admin" })).status === 400, "can't remove the last admin");
 check((await call("POST", `/tournaments/${tid}/staff/remove`, dir, { email: "dir@example.com", role: "director" })).status === 400, "tournament keeps a director");
 
 check((await call("PUT", "/admin/roles", admin, { email: "temp@example.com", role: "treasurer" })).status === 200
   && (await call("POST", "/admin/roles/remove", admin, { email: "temp@example.com", role: "treasurer" })).status === 200
-  && (await call("GET", "/admin/users", admin)).data.users.length === 6, "admin removes a role (POST /remove)");
+  && (await call("GET", "/admin/users", admin)).data.users.length === 5, "admin removes a role (POST /remove)");
 
 const p = await call("PATCH", "/me", cap, { duprId: "l8ew8w", phone: "715-555-0100", marketing: true });
 check(p.data.duprId === "L8EW8W" && p.data.marketing === true, "player updates DUPR ID and marketing opt-in");

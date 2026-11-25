@@ -93,7 +93,8 @@ final class CaptainScreen {
         }
         int photos = a.receipts.waiting();
         if (photos > 0) a.text(photos + " photo" + (photos == 1 ? "" : "s") + " waiting for signal; will send by itself.", 16, true, MainActivity.RED);
-        a.button("📊 All live scores", v -> a.liveScreen.open(id, name));
+        a.button("📊 All live scores", v -> a.startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse(live.api.server() + "/t/" + id))));
         a.smallButton("Refresh now", v -> fetch());
         if (s.length() > 0 && lastSeq == 0) fetch();
     }

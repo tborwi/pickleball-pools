@@ -35,6 +35,9 @@ async function route(req, env) {
   if (p === "/auth/google/start" && m === "GET") return googleStart(env, url);
   if (p === "/auth/google/callback" && m === "GET") return googleCallback(env, url);
   if (p === "/auth/exchange" && m === "POST") return exchange(req, env);
+  // Public, no sign-in: players don't have accounts. Links are long random ids, shared by the director or emailed.
+  const pub = p.match(/^\/(t|public|r)\/([\w-]+)$/);
+  if (pub && m === "GET") return pub[1] === "t" ? livePage(env, pub[2]) : pub[1] === "public" ? publicLive(env, pub[2]) : receiptByToken(env, pub[2]);
 
   const me = await auth(req, env);
   if (p === "/auth/signout" && m === "POST") {
@@ -62,6 +65,8 @@ async function route(req, env) {
   if (rc && rc[2] && m === "GET") return getReceipt(env, me, rc[1], rc[2]);
   const au = p.match(/^\/tournaments\/([\w-]+)\/(audit|events)$/);
   if (au && au[2] === "audit" && m === "GET") { await needStaff(env, me, au[1], "director"); return getAudit(env, au[1], url); }
+  const re = p.match(/^\/tournaments\/([\w-]+)\/results-email$/);
+  if (re && m === "POST") { await needStaff(env, me, re[1], "director"); return resultsEmail(env, me, re[1], url); }
   if (au && au[2] === "events" && m === "POST") { await needStaff(env, me, au[1], "director"); return postEvent(req, env, me, au[1]); }
   const tr = p.match(/^\/tournaments\/([\w-]+)\/staff\/remove$/);
   if (tr && m === "POST") { await needStaff(env, me, tr[1], "director"); return deleteStaff(req, env, me, tr[1]); }
@@ -239,7 +244,7 @@ async function profile(env, u) {
   ).bind(u.email).all();
   return {
     id: u.id, email: u.email, name: u.name, duprId: u.dupr_id, phone: u.phone, marketing: !!u.marketing,
-    roles: ["player", ...u.roles], google: !!u.google_sub, tournaments: staff.results,
+    roles: u.roles, google: !!u.google_sub, tournaments: staff.results,
   };
 }
 
@@ -299,15 +304,6 @@ async function listTournaments(env, me) {
     : await env.DB.prepare("SELECT DISTINCT t.id, t.name, t.created_by, t.created FROM tournaments t JOIN staff s " +
         "ON s.tournament_id = t.id WHERE s.email = ? ORDER BY t.created DESC").bind(me.email).all();
   const out = rows.results;
-  // Tournaments this person plays in (matched by email or DUPR ID in the published pools)
-  const lives = (await env.DB.prepare("SELECT l.tournament_id AS id, l.data, t.name, t.created_by, t.created FROM live l " +
-    "JOIN tournaments t ON t.id = l.tournament_id ORDER BY t.created DESC").all()).results;
-  for (const l of lives)
-    if (myTeams(JSON.parse(l.data), me).size > 0) {
-      const have = out.find(x => x.id === l.id);
-      if (have) have.playing = true;
-      else out.push({ id: l.id, name: l.name, created_by: l.created_by, created: l.created, playing: true });
-    }
   return json({ tournaments: out });
 }
 
@@ -369,46 +365,27 @@ async function putLive(req, env, me, id) {
   return json({ ok: true });
 }
 
-/**
- * What this person may see of a tournament: "all" (admin, director), "courts" (court captain: their courts) or
- * "player" (plays in it: every match and score, receipts of their own matches). Throws 403 otherwise.
- */
-async function access(env, me, id, data) {
+/** What staff may see: "all" (admin, director) or "courts" (court captain: their courts). Throws 403 otherwise. */
+async function access(env, me, id) {
   const t = await env.DB.prepare("SELECT id FROM tournaments WHERE id = ?").bind(id).first();
   if (!t) throw new Http(404, "No such tournament.");
-  const teams = data ? myTeams(data, me) : new Set();
-  if (me.roles.includes("admin")) return { kind: "all", courts: null, teams };
+  if (me.roles.includes("admin")) return { kind: "all", courts: null };
   const r = (await env.DB.prepare("SELECT role, courts FROM staff WHERE tournament_id = ? AND email = ?").bind(id, me.email).all()).results;
-  if (r.some(x => x.role === "director")) return { kind: "all", courts: null, teams };
-  if (r.some(x => x.role === "captain"))
-    return { kind: "courts", courts: r.flatMap(x => x.courts.split(",")).filter(Boolean), teams };
-  if (teams.size > 0) return { kind: "player", courts: [], teams };
+  if (r.some(x => x.role === "director")) return { kind: "all", courts: null };
+  if (r.some(x => x.role === "captain")) return { kind: "courts", courts: r.flatMap(x => x.courts.split(",")).filter(Boolean) };
   throw new Http(403, "You don't have permission to do that.");
 }
 
-/** Team ids this person plays on: data.who = {teamId: {dupr: [...], email: [...]}} (only directors see it). */
-function myTeams(data, me) {
-  const out = new Set();
-  const dupr = String(me.dupr_id || "").toUpperCase();
-  for (const [tid, w] of Object.entries((data && data.who) || {}))
-    if ((w.email || []).map(e => String(e).toLowerCase()).includes(me.email) || (dupr && (w.dupr || []).map(d => String(d).toUpperCase()).includes(dupr)))
-      out.add(tid);
-  return out;
-}
-
-/** May this person see receipts / score this match? */
-function canSeeMatch(a, match) {
-  return a.kind === "all" || (a.courts || []).includes(String(match.court)) || a.teams.has(match.aId) || a.teams.has(match.bId);
-}
+function canSeeMatch(a, match) { return a.kind === "all" || (a.courts || []).includes(String(match.court)); }
 
 /**
- * Pools + scores + receipts. Court captains get only the matches on their courts, unless ?view=all (then every
- * match, read-only, like a player). Players get every match. ?since=<seq> returns only newer scores.
+ * Pools + scores + receipts, for staff. Court captains get only the matches on their courts.
+ * ?since=<seq> returns only newer scores. (Everyone else uses the public page, /t/<id>.)
  */
 async function getLive(env, me, id, url) {
   const row = await env.DB.prepare("SELECT data, updated FROM live WHERE tournament_id = ?").bind(id).first();
   let data = row ? JSON.parse(row.data) : null;
-  const a = await access(env, me, id, data);
+  const a = await access(env, me, id);
   const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
   const sc = await env.DB.prepare("SELECT match_key AS key, games, entered_by AS by, seq FROM scores " +
     "WHERE tournament_id = ? AND seq > ? ORDER BY seq").bind(id, since).all();
@@ -423,15 +400,14 @@ async function getLive(env, me, id, url) {
     if (a.kind !== "all") {
       const { who, ...rest } = data; // players' emails and DUPR IDs stay with the directors
       data = rest;
-      if (a.kind === "courts" && url.searchParams.get("view") !== "all") {
+      if (a.kind === "courts") {
         data = { ...data, matches: all.filter(x => a.courts.includes(String(x.court))) };
         const keys = new Set(data.matches.map(x => x.key));
         scores = scores.filter(x => keys.has(x.key));
       }
     }
   } else receipts = [];
-  return json({ data, updated: row ? row.updated : 0, scores, seq: top.s, courts: a.courts, receipts,
-    myTeams: [...a.teams], view: a.kind });
+  return json({ data, updated: row ? row.updated : 0, scores, seq: top.s, courts: a.courts, receipts, view: a.kind });
 }
 
 async function postScore(req, env, me, id) {
@@ -441,7 +417,7 @@ async function postScore(req, env, me, id) {
   const d = JSON.parse(row.data);
   const match = d.matches.find(x => x.key === b.key);
   if (!match) throw new Http(400, "That match isn't in the current pools. Refresh and try again.");
-  const a = await access(env, me, id, d);
+  const a = await access(env, me, id);
   if (a.kind !== "all" && !(a.courts || []).includes(String(match.court)))
     throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
   const games = checkGames(b.games, d.pointsToWin || 11, d.winBy || 2);
@@ -470,7 +446,7 @@ async function postReceipt(req, env, me, id, url) {
   const d = JSON.parse(row.data);
   const match = d.matches.find(x => x.key === key);
   if (!match) throw new Http(400, "That match isn't in the current pools.");
-  const a = await access(env, me, id, d);
+  const a = await access(env, me, id);
   if (a.kind !== "all" && !(a.courts || []).includes(String(match.court)))
     throw new Http(403, "That match is on court " + match.court + ", not one of yours.");
   if (!/^image\/jpeg/.test(req.headers.get("Content-Type") || "")) throw new Http(400, "Send the photo as a JPEG.");
@@ -478,22 +454,154 @@ async function postReceipt(req, env, me, id, url) {
   if (bytes.byteLength < 100 || bytes.byteLength > MAX_PHOTO) throw new Http(400, "The photo must be under 4 MB.");
   const u = new Uint8Array(bytes);
   if (u[0] !== 0xff || u[1] !== 0xd8) throw new Http(400, "That isn't a JPEG photo.");
-  const rid = randomToken(12);
+  const rid = randomToken(12), token = randomToken(24);
   await env.RECEIPTS.put(`${id}/${rid}.jpg`, bytes, { httpMetadata: { contentType: "image/jpeg" } });
-  await env.DB.prepare("INSERT INTO receipts (id, tournament_id, match_key, entered_by, created, size) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(rid, id, key, me.email, nowS(), bytes.byteLength).run();
+  await env.DB.prepare("INSERT INTO receipts (id, tournament_id, match_key, entered_by, created, size, token) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(rid, id, key, me.email, nowS(), bytes.byteLength, token).run();
   await audit(env, id, me.email, "receipt", key, { receipt: rid, court: match.court, a: match.a, b: match.b });
-  return json({ ok: true, id: rid }, 201);
+  // Email the four players their receipt: the score and a link to the photo
+  const sc = await env.DB.prepare("SELECT games FROM scores WHERE tournament_id = ? AND match_key = ?").bind(id, key).first();
+  const games = sc ? JSON.parse(sc.games) : [];
+  const to = playerEmails(d, [match.aId, match.bId]);
+  const base = publicBase(env, url);
+  const sent = await mailEach(env, id, me.email, to, `${d.name || "Tournament"}: ${match.a} vs ${match.b}`,
+    `Score sheet for your match on court ${match.court} (${match.pool}, round ${match.round}):\n\n` +
+    `${match.a}\n  vs\n${match.b}\n\n` + (games.length ? "Score: " + games.map(g => g.join("-")).join(", ") + "\n\n" : "") +
+    `Photo of the score sheet, with the court captain's initials:\n${base}/r/${token}\n\n` +
+    `Live scores and standings: ${base}/t/${id}\n\nQuestions about a score? Talk to the tournament director.`, key);
+  return json({ ok: true, id: rid, emailed: sent }, 201);
 }
+
+/** Emails of the players on these teams (data.who, from the director's phone). */
+function playerEmails(d, teamIds) {
+  const out = new Set();
+  for (const t of teamIds) for (const e of ((d.who || {})[t] || {}).email || []) if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) out.add(String(e).toLowerCase());
+  return [...out];
+}
+
+function publicBase(env, url) { return (env.PUBLIC_URL || url.origin).replace(/\/+$/, ""); }
+
+/**
+ * Sends one email to each address (each player gets their own, so addresses aren't shared). Every send is in the
+ * audit log. Without RESEND_API_KEY (local testing) nothing is sent but the log still records it.
+ */
+async function mailEach(env, tid, by, to, subject, text, key = "") {
+  let sent = 0;
+  for (const addr of to) {
+    let status = "dev";
+    if (env.RESEND_API_KEY) {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: env.MAIL_FROM, to: [addr], subject, text }),
+      });
+      status = r.ok ? "sent" : "failed " + r.status;
+    }
+    if (status !== "dev" && status !== "sent") continue;
+    sent++;
+  }
+  if (to.length) await audit(env, tid, by, "email", key, { to, subject, text: text.slice(0, 2000), sent });
+  return sent;
+}
+
+// ------------------------------------------------------------------ public: live page, receipt links, results
+
+/** What anyone with the link may see: names, pools, standings and scores. No emails or DUPR IDs. */
+async function publicData(env, id) {
+  const t = await env.DB.prepare("SELECT name FROM tournaments WHERE id = ?").bind(id).first();
+  if (!t) throw new Http(404, "No such tournament.");
+  const row = await env.DB.prepare("SELECT data, updated FROM live WHERE tournament_id = ?").bind(id).first();
+  const d = row ? JSON.parse(row.data) : null;
+  const sc = (await env.DB.prepare("SELECT match_key AS key, games FROM scores WHERE tournament_id = ?").bind(id).all()).results;
+  const scores = {};
+  for (const x of sc) scores[x.key] = JSON.parse(x.games);
+  return {
+    name: (d && d.name) || t.name, updated: row ? row.updated : 0, scores,
+    standings: (d && d.standings) || [], finalists: (d && d.finalists) || [],
+    matches: d ? d.matches.map(({ key, court, round, stage, pool, a, b }) => ({ key, court, round, stage, pool, a, b })) : [],
+  };
+}
+
+async function publicLive(env, id) {
+  const r = json(await publicData(env, id));
+  r.headers.set("Access-Control-Allow-Origin", "*");
+  return r;
+}
+
+async function receiptByToken(env, token) {
+  const r = await env.DB.prepare("SELECT id, tournament_id FROM receipts WHERE token = ?").bind(token).first();
+  if (!r) throw new Http(404, "No such photo.");
+  const obj = await env.RECEIPTS.get(`${r.tournament_id}/${r.id}.jpg`);
+  if (!obj) throw new Http(404, "Photo missing.");
+  return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+}
+
+/** Emails every player the final (or current) standings. ?dry=1 only counts the recipients. */
+async function resultsEmail(env, me, id, url) {
+  const row = await env.DB.prepare("SELECT data FROM live WHERE tournament_id = ?").bind(id).first();
+  if (!row) throw new Http(400, "The pools aren't online yet.");
+  const d = JSON.parse(row.data);
+  const to = playerEmails(d, Object.keys(d.who || {}));
+  if (url.searchParams.get("dry") === "1") return json({ recipients: to.length });
+  let text = `Results: ${d.name || "Tournament"}\n`;
+  for (const s of d.standings || []) {
+    text += `\n${s.stage} · ${s.title}\n`;
+    for (const r of s.rows || []) text += `${r.place}. ${r.label}  ${r.w}-${r.l}  ${r.diff > 0 ? "+" : ""}${r.diff}\n`;
+  }
+  if ((d.finalists || []).length) text += `\nQualified for the Finals:\n` + d.finalists.map(f => "- " + f).join("\n") + "\n";
+  text += `\nAll scores: ${publicBase(env, url)}/t/${id}\n\nThank you for playing!`;
+  const sent = await mailEach(env, id, me.email, to, `${d.name || "Tournament"}: results`, text);
+  return json({ ok: true, recipients: to.length, sent });
+}
+
+/** The live scores page: plain HTML that refreshes itself every 20 seconds. */
+async function livePage(env, id) {
+  const t = await env.DB.prepare("SELECT name FROM tournaments WHERE id = ?").bind(id).first();
+  if (!t) return new Response("No such tournament.", { status: 404 });
+  const html = LIVE_HTML.replace("__ID__", id).replace("__NAME__", escapeHtml(t.name));
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const LIVE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>__NAME__ – live scores</title>
+<style>
+:root{--bg:#fff;--fg:#111;--muted:#555;--card:#f4f6f4;--accent:#1b5e20;--done:#e8f5e9;--todo:#fff8e1}
+@media (prefers-color-scheme:dark){:root{--bg:#121412;--fg:#eee;--muted:#aaa;--card:#1e221e;--accent:#81c784;--done:#1f3321;--todo:#33301f}}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.4 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}h1{color:var(--accent);font-size:26px;margin:0 0 4px}
+h2{font-size:21px;margin:24px 0 8px}.muted{color:var(--muted);font-size:15px}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+td{padding:8px 10px;border-bottom:1px solid rgba(128,128,128,.2)}td.n{text-align:right;white-space:nowrap}
+.m{background:var(--todo);border-radius:10px;padding:10px 12px;margin:6px 0}.m.done{background:var(--done)}
+.fin{font-weight:600;color:var(--accent)}
+</style></head><body><main><h1>__NAME__</h1><div class="muted" id="u">Loading…</div><div id="c"></div></main>
+<script>
+const id="__ID__",e=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function load(){try{const r=await fetch("/public/"+id,{cache:"no-store"});const d=await r.json();let h="";
+if(d.finalists.length)h+="<h2>Qualified for the Finals</h2>"+d.finalists.map(f=>'<div class="fin">🏆 '+e(f)+"</div>").join("");
+for(const s of d.standings){h+="<h2>"+e(s.stage+" · "+s.title)+"</h2><table>"+s.rows.map(r=>"<tr><td>"+e(r.place)+". "+e(r.label)+
+'</td><td class="n">'+r.w+"-"+r.l+'</td><td class="n">'+(r.diff>0?"+":"")+r.diff+"</td></tr>").join("")+"</table>";
+for(const m of d.matches.filter(m=>m.stage===s.stage&&m.pool===s.title)){const g=d.scores[m.key]||[];
+h+='<div class="m'+(g.length?" done":"")+'"><span class="muted">Round '+m.round+" · court "+e(m.court)+"</span><br>"+e(m.a)+"<br>vs "+e(m.b)+
+"<br><b>"+(g.length?g.map(x=>x.join("-")).join(", "):'<span class="muted">not played yet</span>')+"</b></div>";}}
+if(!d.standings.length)h='<p class="muted">The pools aren\'t posted yet.</p>';
+document.getElementById("c").innerHTML=h;document.getElementById("u").textContent="Live · updated "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+}catch(x){document.getElementById("u").textContent="Can't reach the server; trying again…";}}
+load();setInterval(load,20000);
+</script></body></html>`;
 
 async function getReceipt(env, me, id, rid) {
   const r = await env.DB.prepare("SELECT match_key FROM receipts WHERE id = ? AND tournament_id = ?").bind(rid, id).first();
   if (!r) throw new Http(404, "No such receipt.");
   const row = await env.DB.prepare("SELECT data FROM live WHERE tournament_id = ?").bind(id).first();
   const d = row ? JSON.parse(row.data) : { matches: [] };
-  const a = await access(env, me, id, d);
+  const a = await access(env, me, id);
   const match = d.matches.find(x => x.key === r.match_key);
-  if (a.kind !== "all" && !(match && canSeeMatch(a, match))) throw new Http(403, "You can only see receipts of your own matches.");
+  if (a.kind !== "all" && !(match && canSeeMatch(a, match))) throw new Http(403, "You can only see receipts of your own courts.");
   const obj = await env.RECEIPTS.get(`${id}/${rid}.jpg`);
   if (!obj) throw new Http(404, "Photo missing.");
   return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });

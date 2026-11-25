@@ -34,14 +34,14 @@ final class AccountScreen {
         a.page.removeAllViews();
         a.title("Account");
         if (api.server().isEmpty()) {
-            a.note("Accounts are optional. The app works without them on this phone. Sign in to share a tournament "
-                    + "with court captains and to give people roles. Your organization runs the server; ask the admin "
-                    + "for its address.");
+            a.note("Accounts are only for the people running a tournament (admins, directors, court captains, "
+                    + "treasurer). Players don't need one: they get a live scores link and their score sheet photos by email. "
+                    + "The app also works without any of this on one phone. Your organization runs the server; ask the admin for its address.");
             a.button("Set the server address", v -> server());
             return;
         }
         if (!api.signedIn()) {
-            a.note("Sign in to see your roles and tournaments.");
+            a.note("For tournament staff. Players don't need to sign in.");
             a.button("Continue with Google", v -> a.startActivity(new Intent(Intent.ACTION_VIEW,
                     Uri.parse(api.server() + "/auth/google/start"))));
             a.button("Email me a sign-in code", v -> emailCode());
@@ -50,7 +50,7 @@ final class AccountScreen {
         }
         JSONObject me = api.me();
         a.heading(me.optString("name").isEmpty() ? me.optString("email") : me.optString("name"));
-        a.note(me.optString("email") + (me.optString("duprId").isEmpty() ? "" : " · DUPR " + me.optString("duprId")));
+        a.note(me.optString("email"));
         a.note("Roles: " + roleNames(me.optJSONArray("roles")));
         JSONArray ts = me.optJSONArray("tournaments");
         if (ts != null) for (int i = 0; i < ts.length(); i++) {
@@ -58,7 +58,7 @@ final class AccountScreen {
             a.note("• " + x.optString("name") + ": " + ("captain".equals(x.optString("role"))
                     ? "court captain" + (x.optString("courts").isEmpty() ? "" : ", courts " + x.optString("courts")) : "director"));
         }
-        a.button("My details (name, DUPR ID, phone, emails)", v -> details());
+        a.button("My details (name, phone)", v -> details());
         if (api.has("admin")) a.button("People and roles", v -> a.go(this::people, true));
         if (api.has("admin") || api.has("director")) {
             if (a.t.serverId.isEmpty()) a.button("Put this tournament online (for court captains)", v -> putOnline());
@@ -71,11 +71,6 @@ final class AccountScreen {
         }));
         a.smallButton("Server: " + api.server(), v -> server());
         refreshMe();
-    }
-
-    /** Tournaments this person plays in (from the last refresh). */
-    JSONArray playing() {
-        try { return new JSONArray(a.getSharedPreferences("account", 0).getString("playing", "[]")); } catch (Exception e) { return new JSONArray(); }
     }
 
     /** The audit log of the online tournament: every score change (old and new), photo, publish, staff change. */
@@ -101,6 +96,11 @@ final class AccountScreen {
                     case "publish": what = "Pools sent to captains (" + d.optInt("matches") + " matches)"; break;
                     case "staff": what = ("removed".equals(d.optString("change")) ? "Removed " : "Set ") + label(d.optString("role")).toLowerCase(java.util.Locale.US)
                             + " " + d.optString("email") + (d.optString("courts").isEmpty() ? "" : ", courts " + d.optString("courts")); break;
+                    case "email": {
+                        JSONArray to = d.optJSONArray("to");
+                        what = "✉️ Emailed " + (to == null ? 0 : to.length()) + " player" + (to != null && to.length() == 1 ? "" : "s") + ": " + d.optString("subject");
+                        break;
+                    }
                     case "started": what = "▶ Tournament started (pools locked)"; break;
                     case "unlocked": what = "🔓 Pools unlocked"; break;
                     default: what = e.optString("action");
@@ -121,19 +121,12 @@ final class AccountScreen {
             api.setMe(r);
             if (!r.toString().equals(before)) a.refresh();
         }, (net, msg) -> {});
-        api.call("GET", "/tournaments", null, r -> {
-            JSONArray out = new JSONArray(), ts = r.optJSONArray("tournaments");
-            for (int i = 0; ts != null && i < ts.length(); i++) if (ts.optJSONObject(i).optBoolean("playing")) out.put(ts.optJSONObject(i));
-            String old = a.getSharedPreferences("account", 0).getString("playing", "[]");
-            a.getSharedPreferences("account", 0).edit().putString("playing", out.toString()).apply();
-            if (!old.equals(out.toString())) a.refresh();
-        }, (net, msg) -> {});
     }
 
     static String roleNames(JSONArray roles) {
         List<String> out = new ArrayList<>();
         if (roles != null) for (int i = 0; i < roles.length(); i++) out.add(label(roles.optString(i)));
-        return out.isEmpty() ? "player" : String.join(", ", out);
+        return out.isEmpty() ? "no tournament jobs yet (ask your director)" : String.join(", ", out);
     }
 
     static String label(String role) {
@@ -198,20 +191,11 @@ final class AccountScreen {
         JSONObject me = api.me();
         LinearLayout f = a.form();
         EditText name = a.field(f, "Name", me.optString("name"), false);
-        EditText dupr = a.field(f, "DUPR ID (6 letters/numbers, on your DUPR profile)", me.optString("duprId"), false);
-        dupr.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        EditText phone = a.field(f, "Phone", me.optString("phone"), false);
+        EditText phone = a.field(f, "Phone (so the director can reach you)", me.optString("phone"), false);
         phone.setInputType(InputType.TYPE_CLASS_PHONE);
-        CheckBox mk = new CheckBox(a);
-        mk.setText("Email me about future tournaments and events");
-        mk.setTextSize(17);
-        mk.setChecked(me.optBoolean("marketing"));
-        f.addView(mk);
         new AlertDialog.Builder(a).setTitle("My details").setView(a.scroll(f))
                 .setPositiveButton("Save", (d, w) -> {
-                    JSONObject b = obj("name", name.getText().toString(), "duprId", dupr.getText().toString(),
-                            "phone", phone.getText().toString());
-                    try { b.put("marketing", mk.isChecked()); } catch (Exception ignored) {}
+                    JSONObject b = obj("name", name.getText().toString(), "phone", phone.getText().toString());
                     api.call("POST", "/me", b, r -> { api.setMe(r); a.refresh(); });
                 })
                 .setNegativeButton("Cancel", null).show();

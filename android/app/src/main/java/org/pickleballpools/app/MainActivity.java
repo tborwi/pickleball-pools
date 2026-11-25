@@ -49,7 +49,6 @@ public class MainActivity extends Activity {
     AccountScreen account;
     Live live;
     CaptainScreen captain;
-    LiveScreen liveScreen;
     Receipts receipts;
 
     @SuppressWarnings("deprecation")
@@ -74,7 +73,6 @@ public class MainActivity extends Activity {
         account = new AccountScreen(this);
         live = new Live(this, account.api);
         captain = new CaptainScreen(this, live);
-        liveScreen = new LiveScreen(this, live);
         receipts = new Receipts(this, account.api);
         go(this::home, false);
         signInLink(getIntent());
@@ -171,7 +169,11 @@ public class MainActivity extends Activity {
                             + "but redoing a round's pools erases that round's scores. Start again when they are right.",
                     () -> { t.unlock(); live.event("unlocked"); save(); refresh(); }));
         }
-        if (live.directing()) button("History (who changed what)", v -> go(account::history, true));
+        if (live.directing()) {
+            button("Share the live scores link (players, families)", v -> shareLiveLink());
+            button("Email the results to all players", v -> emailResults());
+            button("History (who changed what)", v -> go(account::history, true));
+        }
         heading("More");
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
@@ -179,6 +181,27 @@ public class MainActivity extends Activity {
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("Start a new tournament", v -> newTournament());
+    }
+
+    String liveLink() { return account.api.server() + "/t/" + t.serverId; }
+
+    /** Players have no accounts: they follow a public page (no sign-in) that updates every 20 seconds. */
+    void shareLiveLink() {
+        String msg = t.name + ": live scores and standings\n" + liveLink();
+        startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_SUBJECT, t.name + " live scores").putExtra(Intent.EXTRA_TEXT, msg), "Share the live scores link"));
+    }
+
+    void emailResults() {
+        account.api.call("POST", "/tournaments/" + t.serverId + "/results-email?dry=1", new org.json.JSONObject(), r -> {
+            int n = r.optInt("recipients");
+            if (n == 0) { toast("No player emails yet: add them on the team form or load registrations."); return; }
+            confirm("Email the results?", "Sends the standings" + (t.finalists().isEmpty() ? "" : " and Finals qualifiers")
+                            + " and the live scores link to " + n + " player" + (n == 1 ? "" : "s") + ", one email each.\n\n"
+                            + (Tournament.complete(t.round2) ? "" : "⚠️ The tournament isn't finished yet, so these are the standings so far."),
+                    () -> account.api.call("POST", "/tournaments/" + t.serverId + "/results-email", new org.json.JSONObject(),
+                            rr -> toast("Results emailed to " + rr.optInt("sent") + " players")));
+        });
     }
 
     void startTournament() {
@@ -209,13 +232,7 @@ public class MainActivity extends Activity {
             button("🏓 Score my courts" + (x.optString("courts").isEmpty() ? "" : " (" + x.optString("courts") + ")") + ": "
                     + x.optString("name"), v -> captain.open(x.optString("id"), x.optString("name")));
         }
-        // Tournaments this person plays in: live scores and their score sheet photos
-        org.json.JSONArray pl = account.api.signedIn() ? account.playing() : null;
-        for (int i = 0; pl != null && i < pl.length(); i++) {
-            org.json.JSONObject x = pl.optJSONObject(i);
-            if (shown.contains(x.optString("id")) || x.optString("id").equals(t.serverId)) continue;
-            button("📊 Live scores: " + x.optString("name"), v -> liveScreen.open(x.optString("id"), x.optString("name")));
-        }
+
     }
 
     /** Red warning + button when a round's pools no longer match the teams still in. */
@@ -328,9 +345,12 @@ public class MainActivity extends Activity {
         EditText p2 = field(f, "Player 2 (partner) name", existing == null ? "" : existing.player2, false);
         EditText d2 = field(f, "Player 2 DUPR rating (e.g. 5.51)", existing == null ? "" : num(existing.dupr2), true);
         EditText i2 = field(f, "Player 2 DUPR ID (optional)", existing == null ? "" : existing.duprId2, false);
+        EditText e1 = field(f, "Player 1 email (optional: gets score sheet photos and results)", existing == null ? "" : existing.email1, false);
+        EditText e2 = field(f, "Player 2 email (optional)", existing == null ? "" : existing.email2, false);
+        for (EditText e : new EditText[]{e1, e2}) e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         for (EditText e : new EditText[]{i1, i2})
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        f.addView(free(text("DUPR IDs let players sign in and see their own matches and score sheet photos.", 14, false, GREY)));
+        f.addView(free(text("With an email, each player is sent the photo of every score sheet from their matches, and the results.", 14, false, GREY)));
         EditText n = field(f, "Team name (optional)", existing == null ? "" : existing.name, false);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(existing == null ? "Add a team" : "Change team")
@@ -354,6 +374,9 @@ public class MainActivity extends Activity {
             String id1 = org.pickleballpools.core.Player.normId(i1.getText().toString()), id2 = org.pickleballpools.core.Player.normId(i2.getText().toString());
             for (String id : new String[]{id1, id2})
                 if (!id.isEmpty() && !id.matches("[A-Z0-9]{4,12}")) { toast("A DUPR ID is letters and numbers only, like L8EW8W"); return; }
+            String m1 = e1.getText().toString().trim().toLowerCase(Locale.ROOT), m2 = e2.getText().toString().trim().toLowerCase(Locale.ROOT);
+            for (String m : new String[]{m1, m2})
+                if (!m.isEmpty() && !m.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) { toast(m + " isn't an email address"); return; }
             if (!id1.isEmpty() && id1.equals(id2)) { toast("The two players can't have the same DUPR ID"); return; }
             for (Team o : t.teams)
                 if (o != existing && !o.withdrawn) for (String id : new String[]{id1, id2})
@@ -366,6 +389,8 @@ public class MainActivity extends Activity {
             x.name = n.getText().toString().trim();
             x.duprId1 = id1;
             x.duprId2 = id2;
+            x.email1 = m1;
+            x.email2 = m2;
             save();
             d.dismiss();
             refresh();

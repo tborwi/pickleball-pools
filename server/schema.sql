@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS receipts (
   match_key TEXT NOT NULL,
   entered_by TEXT NOT NULL,
   created INTEGER NOT NULL,
-  size INTEGER NOT NULL
+  size INTEGER NOT NULL,
+  token TEXT NOT NULL UNIQUE           -- long random part of the photo link emailed to the match's players
 );
 CREATE INDEX IF NOT EXISTS receipts_t ON receipts (tournament_id, match_key);

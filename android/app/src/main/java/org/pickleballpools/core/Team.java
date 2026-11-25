@@ -6,7 +6,8 @@ public final class Team {
     public String name = "";
     public String player1 = "", player2 = "";
     public double dupr1, dupr2;
-    public String duprId1 = "", duprId2 = ""; // the players' DUPR IDs (identity), so they can see their own matches and photos
+    public String duprId1 = "", duprId2 = "";
+    public String email1 = "", email2 = "";   // where their score sheet photos and results are emailed (optional) // the players' DUPR IDs (identity), so they can see their own matches and photos
     public boolean withdrawn;  // dropped out: never seeded, never advances; see Tournament.withdraw
     public String regKey = ""; // set when the team came from registrations (Registration.key), so it is added only once
 

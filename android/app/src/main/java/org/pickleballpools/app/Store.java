@@ -64,7 +64,7 @@ final class Store {
         JSONArray teams = new JSONArray();
         for (Team x : t.teams)
             teams.put(new JSONObject().put("id", x.id).put("name", x.name).put("player1", x.player1)
-                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey).put("duprId1", x.duprId1).put("duprId2", x.duprId2).put("withdrawn", x.withdrawn));
+                    .put("player2", x.player2).put("dupr1", x.dupr1).put("dupr2", x.dupr2).put("regKey", x.regKey).put("duprId1", x.duprId1).put("duprId2", x.duprId2).put("email1", x.email1).put("email2", x.email2).put("withdrawn", x.withdrawn));
         return o.put("teams", teams).put("round1", pools(t.round1)).put("round2", pools(t.round2));
     }
 
@@ -127,6 +127,8 @@ final class Store {
             x.regKey = j.optString("regKey");
             x.duprId1 = j.optString("duprId1");
             x.duprId2 = j.optString("duprId2");
+            x.email1 = j.optString("email1");
+            x.email2 = j.optString("email2");
             if (x.duprId1.isEmpty() && x.regKey.contains("+")) { // teams added from registrations before 1.10
                 String[] k = x.regKey.split("\\+", 2);
                 x.duprId1 = k[0];

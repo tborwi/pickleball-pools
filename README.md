@@ -37,8 +37,9 @@ points per game, and win-by. Data stays on the device; nothing is sent anywhere 
 
 ## Accounts (optional)
 
-Sign in with Google or an emailed code to get roles: admin, tournament director, court captain, treasurer and
-player. It needs your organization's own small server (free on Cloudflare): see [ROLES.md](ROLES.md) and
+Tournament staff sign in with Google or an emailed code and get roles: admin, tournament director, court captain and
+treasurer. Court captains enter scores and photograph the paper score sheets. Players don't need accounts: they get
+a live scores link and are emailed their score sheet photos and the results. It needs your organization's own small server (free on Cloudflare): see [ROLES.md](ROLES.md) and
 [server/README.md](server/README.md). Without it, the app works exactly as before.
 
 ## When players or teams drop out

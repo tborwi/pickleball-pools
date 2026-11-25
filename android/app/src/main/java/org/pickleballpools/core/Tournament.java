@@ -84,6 +84,7 @@ public final class Tournament {
             x.player1 = pr[0].name; x.dupr1 = pr[0].rating;
             x.player2 = pr[1].name; x.dupr2 = pr[1].rating;
             x.duprId1 = pr[0].duprId; x.duprId2 = pr[1].duprId;
+            x.email1 = pr[0].email; x.email2 = pr[1].email;
             r.added++;
         }
         return r;

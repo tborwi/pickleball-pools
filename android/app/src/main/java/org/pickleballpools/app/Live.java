@@ -112,6 +112,19 @@ final class Live {
                             .put("name", p.name).put("teams", teams));
                 }
             d.put("pools", pools).put("who", who);
+            // Standings for the public live page and the results email, worked out here with the tiebreak rules
+            JSONArray standings = new JSONArray();
+            for (List<Pool> round : List.of(t.round1, t.round2))
+                for (Pool p : round) {
+                    JSONArray rows = new JSONArray();
+                    for (org.pickleballpools.core.Standings.Row r : org.pickleballpools.core.Standings.of(p, ids))
+                        rows.put(new JSONObject().put("place", r.withdrawn ? "–" : String.valueOf(r.place)).put("label", r.team.label())
+                                .put("w", r.wins).put("l", r.losses).put("diff", r.diff()));
+                    standings.put(new JSONObject().put("stage", round == t.round2 ? "Round 2" : "Round 1").put("title", p.title()).put("rows", rows));
+                }
+            JSONArray fin = new JSONArray();
+            for (Team f : t.finalists()) fin.put(f.label());
+            d.put("standings", standings).put("finalists", fin);
         } catch (Exception ignored) {}
         return d;
     }
@@ -125,6 +138,8 @@ final class Live {
                 if (org.pickleballpools.core.Player.normId(pl.duprId).equals(id)
                         && pl.email != null && !pl.email.isBlank()) email.put(pl.email.trim().toLowerCase(java.util.Locale.ROOT));
         }
+        for (String e : new String[]{x.email1, x.email2})
+            if (e != null && e.contains("@")) email.put(e.trim().toLowerCase(java.util.Locale.ROOT));
         return new JSONObject().put("dupr", dupr).put("email", email);
     }
 

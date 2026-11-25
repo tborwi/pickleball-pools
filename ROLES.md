@@ -1,14 +1,16 @@
 # Accounts and roles
 
 Accounts are **optional**. Without a server the app works fully on one phone, as before. With the accounts server
-(`server/`), people sign in with **Google** or a **6-digit code sent by email**, and each person has roles.
+(`server/`), the people running tournaments sign in with **Google** or a **6-digit code sent by email**, and each has roles.
+
+**Players don't have accounts.** They follow a public **live scores page** (a link or QR code the director shares,
+no sign-in) and are **emailed** the photo of each score sheet from their matches and the final results.
 
 | Role | Given by | What they can do |
 |---|---|---|
-| **Player** | Everyone who signs in | Their own details (name, DUPR ID, phone, marketing-email choice). In tournaments they play in: **live scores and standings** of every pool, and the **score sheet photos of their own matches** |
-| **Court captain** | A tournament's director, per tournament, with court numbers (e.g. 7, 8) | See that tournament and its staff list; enter scores and **take score sheet photos** for the matches on their courts only; view all live scores |
+| **Court captain** | A tournament's director, per tournament, with court numbers (e.g. 7, 8) | See that tournament and its staff list; enter scores and **take score sheet photos** for the matches on their courts only |
 | **Treasurer** | An admin | See every tournament; registrations and payments (Zeffy/Stripe import) |
-| **Tournament director** | An admin | Create tournaments, run them, add or remove court captains and co-directors; see the tournament's **History** (audit log) and every photo |
+| **Tournament director** | An admin | Create tournaments, run them, add or remove court captains and co-directors; see the tournament's **History** (audit log) and every photo; share the live scores link; email the results to players |
 | **Admin** | An admin | Everything, plus give and take away roles. There is always at least one admin. |
 
 - Roles are given **by email address**, so they can be set before the person ever signs in. Google sign-in and an
@@ -25,10 +27,14 @@ Accounts are **optional**. Without a server the app works fully on one phone, as
 - **Score sheet photos (receipts):** after entering a match, the captain is asked to photograph the paper score sheet
   with their initials. Photos are shrunk to about 1600 px and stored in the server's photo storage (Cloudflare R2).
   Without signal they wait on the phone and send later.
-- **Who sees a photo:** the tournament's directors and admins, the captain of that court, and the four players in that
-  match. Players are linked to their teams by **DUPR ID** (or the email they registered with): teams from
-  registrations have both players' DUPR IDs; for teams typed in by hand, enter each player's DUPR ID on the team form.
-  Each player also puts their DUPR ID under **My details** after signing in.
+- **Emailed receipts:** when a photo is sent, each player in that match with an email gets their own email with the
+  score and a link to the photo. Emails come from the registration (Zeffy/Stripe export) or the team form.
+  The photo link is long and random; only people who have the email can open it. Every email is in the History.
+- **Who else sees photos:** the tournament's directors and admins, and the captain of that court, in the app.
+- **Live scores page** (`/t/<tournament id>`): team names, pools, standings and scores, updated every 20 seconds.
+  No emails, DUPR IDs or photos are on it. Standings are worked out on the director's phone (same tiebreak rules).
+- **Results email:** the director's **Email the results to all players** sends standings, Finals qualifiers and the
+  live page link, one email per player.
 
 ## Live scoring
 
