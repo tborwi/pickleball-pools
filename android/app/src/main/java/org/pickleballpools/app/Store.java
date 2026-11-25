@@ -49,7 +49,7 @@ final class Store {
                 .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
                 .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
                 .put("winBy", t.winBy).put("nextId", t.nextId).put("paymentLink", t.paymentLink)
-                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When);
+                .put("serverId", t.serverId).put("liveSeq", t.liveSeq).put("startedAt", t.startedAt).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When);
         if (t.importColumns != null) {
             JSONArray c = new JSONArray();
             for (int i : t.importColumns) c.put(i);
@@ -96,6 +96,7 @@ final class Store {
         t.paymentLink = o.optString("paymentLink");
         t.serverId = o.optString("serverId");
         t.liveSeq = o.optLong("liveSeq");
+        t.startedAt = o.optLong("startedAt");
         t.firstCourt = o.optInt("firstCourt", 1);
         t.round1When = o.optString("round1When");
         t.round2When = o.optString("round2When");
@@ -129,6 +130,8 @@ final class Store {
         }
         readPools(o.optJSONArray("round1"), t.round1);
         readPools(o.optJSONArray("round2"), t.round2);
+        // Saved before "Start" existed (1.7 and older): a tournament with scores is already under way
+        if (t.startedAt == 0 && (org.pickleballpools.core.Tournament.scored(t.round1) > 0 || !t.round2.isEmpty())) t.startedAt = 1;
         // 1.3 could keep a withdrawn team's results (with forfeits); USA Pickleball 15.B.4.a removes them.
         for (Team x : t.teams) if (x.withdrawn) t.withdraw(x);
         return t;

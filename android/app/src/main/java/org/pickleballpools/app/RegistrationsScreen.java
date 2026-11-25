@@ -89,6 +89,7 @@ final class RegistrationsScreen {
     }
 
     void addTeams() {
+        if (t().started()) { a.toast("The tournament has started, so teams can't be added."); return; }
         Tournament.AddResult r = t().addReadyTeams();
         a.save();
         a.toast("Added " + r.added + " team" + (r.added == 1 ? "" : "s") + ". See Teams.");

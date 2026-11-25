@@ -100,6 +100,7 @@ final class Live {
 
     /** Sends the pools when they changed since the last time (new pools, redo, withdrawal, rename...). */
     void publish(Runnable then) {
+        if (!a.t.started()) { then.run(); return; } // captains see the pools once the director presses Start
         String text = snapshot().toString();
         String k = "published:" + a.t.serverId;
         if (text.equals(prefs.getString(k, ""))) { then.run(); return; }

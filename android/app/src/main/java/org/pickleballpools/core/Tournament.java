@@ -37,6 +37,24 @@ public final class Tournament {
     public final List<Pool> round2 = new ArrayList<>();
     public int nextId = 1;
 
+    public long startedAt; // when the director pressed Start (ms); 0 = not started. Started = pools locked.
+
+    public boolean started() { return startedAt > 0; }
+
+    /**
+     * Starts the tournament: locks the teams and pools (no redo, no new teams, no format changes) and opens
+     * score entry. Returns an error message, or null when started.
+     */
+    public String start(long now) {
+        if (round1.isEmpty()) return "Make the Round 1 pools first";
+        if (started()) return "Already started";
+        startedAt = now;
+        return null;
+    }
+
+    /** Unlocks the pools again (director's escape hatch). Scores are kept. */
+    public void unlock() { startedAt = 0; }
+
     /** Live-scoring id of a match: round, pool and the two team ids, e.g. "r1:A:t3:t7". */
     public String matchKey(Pool p, Match m) {
         return "r" + (round2.contains(p) ? 2 : 1) + ":" + p.name + ":" + m.a + ":" + m.b;

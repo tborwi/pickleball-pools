@@ -136,17 +136,21 @@ public class MainActivity extends Activity {
         if (t.round1.isEmpty()) {
             button("Make Round 1 pools", v -> makeRound1());
         } else {
+            if (!t.started()) {
+                text("Check the pools, then start. Starting locks the teams and pools and opens score entry "
+                        + "(court captains too).", 17, false, Color.BLACK);
+                button("▶  Start the tournament", v -> startTournament());
+            }
             heading("Round 1");
             if (t.round2.isEmpty()) redoBanner(t.round1, "Round 1");
             for (Pool p : t.round1) poolButton(p);
-            if (t.round2.isEmpty()) smallButton("Redo Round 1 pools…", v -> redo(t.round1, "Round 1"));
+            if (t.round2.isEmpty() && !t.started()) smallButton("Redo Round 1 pools…", v -> redo(t.round1, "Round 1"));
         }
         if (Tournament.complete(t.round1) && t.round2.isEmpty()) button("Make Round 2 pools", v -> makeRound2());
         if (!t.round2.isEmpty()) {
             heading("Round 2");
             redoBanner(t.round2, "Round 2");
             for (Pool p : t.round2) poolButton(p);
-            smallButton("Redo Round 2 pools…", v -> redo(t.round2, "Round 2"));
             List<Team> f = t.finalists();
             if (!f.isEmpty()) {
                 heading("Qualified for the Finals");
@@ -154,6 +158,14 @@ public class MainActivity extends Activity {
             }
         }
 
+        if (t.started()) {
+            note("🔒 Started" + (t.startedAt < 100000 ? "" : " " + new java.text.SimpleDateFormat("EEE h:mm a", Locale.US).format(new java.util.Date(t.startedAt)))
+                    + ". Teams and pools are locked.");
+            smallButton("Unlock the pools…", v -> confirm("Unlock the pools?",
+                    "Only if the pools really must change (for example, rebuilt after a mistake). Scores already entered are kept, "
+                            + "but redoing a round's pools erases that round's scores. Start again when they are right.",
+                    () -> { t.unlock(); save(); refresh(); }));
+        }
         heading("More");
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
@@ -161,6 +173,22 @@ public class MainActivity extends Activity {
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("Start a new tournament", v -> newTournament());
+    }
+
+    void startTournament() {
+        int n = 0;
+        for (Pool p : t.round1) n += p.matches.size();
+        confirm("Start the tournament?", t.round1.size() + " pools, " + t.seeded().size() + " teams, " + n + " matches.\n\n"
+                        + "This locks the teams and pools: no more redoing pools or adding teams. Teams can still drop out "
+                        + "(USA Pickleball 15.B.4.a). Score entry opens" + (live.directing() ? ", and court captains see their matches." : "."),
+                () -> {
+                    String err = t.start(System.currentTimeMillis());
+                    if (err != null) { toast(err); return; }
+                    save();
+                    if (live.directing()) live.syncNow();
+                    refresh();
+                    toast("Tournament started");
+                });
     }
 
     /** "Score my courts" for each tournament this person is a court captain of. */
@@ -177,7 +205,7 @@ public class MainActivity extends Activity {
     /** Red warning + button when a round's pools no longer match the teams still in. */
     void redoBanner(List<Pool> round, String name) {
         String why = t.outOfDate(round);
-        if (why == null) return;
+        if (why == null || t.started()) return; // locked: withdrawn teams' matches just don't count (15.B.4.a)
         int scored = Tournament.scored(round);
         text("⚠️ " + why + "." + (scored == 0 ? " No scores yet, so the pools can be redone."
                 : " " + scored + " match score" + (scored == 1 ? " is" : "s are") + " already entered."), 17, true, RED);
@@ -251,8 +279,11 @@ public class MainActivity extends Activity {
         page.removeAllViews();
         title("Teams");
         note("Listed by seed (combined DUPR, highest first). Tap a team to change it.");
-        button("+ Add a team", v -> editTeam(null));
-        button("Paste a list of teams", v -> pasteTeams());
+        if (t.started()) note("🔒 The tournament has started: teams can be changed or withdrawn, not added.");
+        else {
+            button("+ Add a team", v -> editTeam(null));
+            button("Paste a list of teams", v -> pasteTeams());
+        }
         if (!t.round1.isEmpty()) note("Someone can't play? Tap the team: replace the player (change name and DUPR), or Withdraw the team.");
         List<Team> s = t.seeded();
         for (int i = 0; i < s.size(); i++) {
@@ -317,7 +348,7 @@ public class MainActivity extends Activity {
         Runnable after = () -> {
             save();
             refresh();
-            if (!round.isEmpty() && Tournament.scored(round) == 0)
+            if (!round.isEmpty() && Tournament.scored(round) == 0 && !t.started())
                 confirm("Redo " + name + " pools?", x.label() + " dropped out and no scores are entered yet in " + name
                         + ". Redo the pools so they stay even?", () -> { if (round == t.round1) t.startRound1(); else t.startRound2(); save(); refresh(); });
         };
@@ -398,6 +429,7 @@ public class MainActivity extends Activity {
     }
 
     void score(Pool p, Match m) {
+        if (!t.started()) { toast("Press \"Start the tournament\" on the home screen first"); return; }
         Map<String, Team> ids = t.byId();
         String warn = t.round1.contains(p) && !t.round2.isEmpty()
                 ? "Round 2 is already made. Changing this score will NOT move teams in Round 2." : null;
@@ -468,6 +500,7 @@ public class MainActivity extends Activity {
         EditText w1 = field(f, "Round 1 starts (e.g. Saturday 9:00am)", t.round1When, false);
         EditText w2 = field(f, "Round 2 starts", t.round2When, false);
         if (!t.round1.isEmpty()) pools.setEnabled(false);
+        if (t.started()) { to.setEnabled(false); by.setEnabled(false); adv.setEnabled(false); }
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Settings").setView(scroll(f))
                 .setPositiveButton("Save", null).setNegativeButton("Cancel", null).show();
         d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {

@@ -264,6 +264,13 @@ public final class CoreTest {
         tiebreakContinues();
         printSheets();
 
+        Tournament go = sixteenTeams();
+        check(go.start(1) != null && !go.started(), "can't start before the pools are made");
+        go.startRound1();
+        check(go.start(1000) == null && go.started(), "start locks the pools");
+        go.unlock();
+        check(!go.started(), "unlock");
+
         System.out.println(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }

@@ -17,13 +17,16 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    Teams are seeded by **combined DUPR** (5.56 + 5.51 = 11.07).
 2. **Round 1 pools.** Teams are snaked into pools by seed: A, B, C, D, then D, C, B, A, and so on.
    So Pool A gets seeds 1, 8, 9, 16 and Pool D gets 4, 5, 12, 13. Each pool plays a round robin.
-3. **Scores.** Each match is best 2 out of 3 games to 11, win by 2 (USA Pickleball). The app refuses impossible scores.
-4. **Round 2.** The top 2 of each pool go to the **Championship** bracket (Pools A and B), the rest to the
+3. **Start.** When the pools look right, the director presses **Start the tournament**. That locks the teams and
+   pools (no more redoing pools or adding teams; teams can still drop out) and opens score entry, including for
+   court captains. **Unlock the pools** is there for real mistakes.
+4. **Scores.** Each match is best 2 out of 3 games to 11, win by 2 (USA Pickleball). The app refuses impossible scores.
+5. **Round 2.** The top 2 of each pool go to the **Championship** bracket (Pools A and B), the rest to the
    **Consolation** bracket (Pools C and D). Teams are re-seeded by Round 1 result (pool finish, then wins,
    point differential, points scored) and snaked again. Another round robin.
-5. **Finals.** The top team of each Championship pool is shown as qualified for the Finals.
-6. **Share.** One button sends all standings as text (email, text message, Facebook post…).
-7. **Print sheets.** For each round, the app makes three Excel files to print the night before (or email / save to
+6. **Finals.** The top team of each Championship pool is shown as qualified for the Finals.
+7. **Share.** One button sends all standings as text (email, text message, Facebook post…).
+8. **Print sheets.** For each round, the app makes three Excel files to print the night before (or email / save to
    Drive): the **schedule** (teams and which match is on which court each round), one **court captain sheet** per
    pool (game scores and initials), and one **results grid** per pool (every team against every other, record,
    points, place). Set the first court number and start times in Settings. Printed again later, they include
