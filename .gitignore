@@ -9,3 +9,4 @@ android/keystore.properties
 *.keystore
 *.bak-*
 homelab/
+android/app/src/main/assets/practice-players.txt

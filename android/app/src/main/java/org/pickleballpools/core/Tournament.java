@@ -64,7 +64,44 @@ public final class Tournament {
      * A practice tournament: 16 made-up teams (names, ratings, DUPR IDs) so a director can try everything before
      * a real event. Two players share a name on purpose (shown "Pat L." and "Pat L. (2)" in public).
      */
-    public static Tournament practice() {
+    public static Tournament practice() { return practice(null); }
+
+    /**
+     * A practice tournament from your own roster: one player per line, partners on consecutive lines, "#" comments.
+     * A trailing "*" gives that player the highest rating. Random DUPR IDs and ratings (2.9-3.8). Fewer than 8 teams:
+     * 2 pools. A null or too-short roster gives the built-in made-up teams.
+     */
+    public static Tournament practice(List<String> roster) {
+        List<String> names = new ArrayList<>();
+        if (roster != null) for (String l : roster) if (!l.isBlank() && !l.trim().startsWith("#")) names.add(l.trim());
+        if (names.size() < 8) return builtInPractice();
+        Tournament t = new Tournament();
+        t.name = "Practice Tournament";
+        java.util.Random r = new java.util.Random();
+        String abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        List<Team> starred = new ArrayList<>();
+        double top = 0;
+        for (int i = 0; i + 1 < names.size(); i += 2) {
+            String[] id = new String[2];
+            for (int k = 0; k < 2; k++) { StringBuilder b = new StringBuilder(); for (int c = 0; c < 6; c++) b.append(abc.charAt(r.nextInt(abc.length()))); id[k] = b.toString(); }
+            Team x = t.addTeam(id[0], id[1]);
+            String a = names.get(i), b = names.get(i + 1);
+            x.player1 = a.replace("*", "").trim();
+            x.player2 = b.replace("*", "").trim();
+            x.dupr1 = Math.round((2.9 + r.nextDouble() * 0.9) * 1000) / 1000.0;
+            x.dupr2 = Math.round((2.9 + r.nextDouble() * 0.9) * 1000) / 1000.0;
+            top = Math.max(top, Math.max(x.dupr1, x.dupr2));
+            if (a.endsWith("*")) x.dupr1 = -1;
+            if (b.endsWith("*")) x.dupr2 = -1;
+            if (a.endsWith("*") || b.endsWith("*")) starred.add(x);
+        }
+        double best = Math.round((Math.max(top, 3.8) + 0.25 + r.nextDouble() * 0.3) * 1000) / 1000.0; // always the highest
+        for (Team x : starred) { if (x.dupr1 < 0) x.dupr1 = best; if (x.dupr2 < 0) x.dupr2 = best; }
+        if (t.teams.size() < 8) t.poolCount = 2;
+        return t;
+    }
+
+    static Tournament builtInPractice() {
         String[] first = {"Pat", "Sam", "Alex", "Jordan", "Casey", "Morgan", "Riley", "Taylor", "Jamie", "Drew", "Quinn", "Avery",
                 "Reese", "Blake", "Cameron", "Dana", "Emerson", "Finley", "Harper", "Hayden", "Jesse", "Kendall", "Logan", "Parker",
                 "Robin", "Sage", "Shawn", "Skyler", "Terry", "Lee", "Kim", "Pat"};

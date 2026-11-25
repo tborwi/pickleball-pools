@@ -625,12 +625,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Optional private roster for the practice tournament (assets/practice-players.txt, not in the public repo). */
+    List<String> practiceRoster() {
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(getAssets().open("practice-players.txt"),
+                java.nio.charset.StandardCharsets.UTF_8))) {
+            List<String> l = new ArrayList<>();
+            for (String s; (s = r.readLine()) != null; ) l.add(s);
+            return l;
+        } catch (java.io.IOException e) {
+            return null;
+        }
+    }
+
     void newTournament() {
         new AlertDialog.Builder(this).setTitle("Start a new tournament?")
                 .setMessage("This erases all teams and scores on this device. Share the results first if you need them.\n\n"
                         + "Practice tournament: 16 made-up teams, to try everything before a real event.")
                 .setPositiveButton("Empty", (d, w) -> { t = new Tournament(); save(); back.clear(); refresh(); })
-                .setNeutralButton("Practice", (d, w) -> { t = Tournament.practice(); save(); back.clear(); refresh(); })
+                .setNeutralButton("Practice", (d, w) -> { t = Tournament.practice(practiceRoster()); save(); back.clear(); refresh(); })
                 .setNegativeButton("Cancel", null).show();
     }
 
