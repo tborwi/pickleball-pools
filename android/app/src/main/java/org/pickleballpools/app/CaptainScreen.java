@@ -64,7 +64,9 @@ final class CaptainScreen {
             if (!g.equals(group)) { group = g; a.heading(g); }
             String key = m.optString("key");
             List<int[]> games = Live.games(q.has(key) ? q.optJSONArray(key) : scores == null ? null : scores.optJSONArray(key));
-            String txt = "Court " + m.optString("court") + " · " + m.optString("pool") + "\n" + m.optString("a") + "\n   vs  "
+            String na = m.optString("a").split(" ", 2)[0], nb = m.optString("b").split(" ", 2)[0]; // pool team numbers, as called out
+            String call = na.matches("\\d+") && nb.matches("\\d+") ? " · " + (data.optBoolean("singles") ? "Player " : "Team ") + na + " vs " + nb : "";
+            String txt = "Court " + m.optString("court") + call + "\n" + m.optString("pool") + "\n" + m.optString("a") + "\n   vs  "
                     + m.optString("b") + "\n   " + (games.isEmpty() ? "not played yet" : text(games)) + (q.has(key) ? "  (sending…)" : "");
             TextView row = a.text(txt, 18, false, MainActivity.INK);
             a.card(row).setBackground(a.box(games.isEmpty() ? MainActivity.PENDING : MainActivity.LIGHT));

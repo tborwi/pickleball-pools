@@ -146,6 +146,22 @@ public final class CoreTest {
         List<int[]> c = PrintSheets.courts(t, t.round1);
         check(c.size() == 4 && c.get(0)[0] == 7 && c.get(0)[1] == 8 && c.get(3)[1] == 14, "4-team pools use 2 courts each, numbered from 7");
         check(PrintSheets.shortOfCourts(t, t.round1) == null, "no venue: never short of courts");
+        { // Seeded order: the top two seeds of a pool meet in the last round; teams move around the pool's courts
+            Pool pa = t.round1.get(0);
+            String one = pa.teamIds.get(0), two = pa.teamIds.get(1);
+            int last = 0;
+            for (Match mm : pa.matches) if ((mm.a.equals(one) && mm.b.equals(two)) || (mm.a.equals(two) && mm.b.equals(one))) last = mm.round;
+            check(last == PrintSheets.rounds(pa), "seeds 1 and 2 meet in the last round (round " + last + ")");
+            java.util.Map<Match, Integer> co = PrintSheets.courtOf(t, t.round1);
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (Match mm : pa.matches) if (mm.a.equals(one) || mm.b.equals(one)) seen.add(co.get(mm));
+            check(seen.size() == 2, "top seed plays on both of its pool's courts, not one court all day: " + seen);
+            for (int rd = 1; rd <= PrintSheets.rounds(pa); rd++) {
+                java.util.Set<Integer> used = new java.util.HashSet<>();
+                for (Match mm : PrintSheets.inRound(pa, rd)) used.add(co.get(mm));
+                check(used.size() == PrintSheets.inRound(pa, rd).size(), "round " + rd + ": one match per court");
+            }
+        }
         check(Tournament.parseCourts("1-4, 6 6,9").toString().equals("[1, 2, 3, 4, 6, 9]"), "parse courts");
         check(Tournament.parseCourts("1-x") == null && Tournament.parseCourts("4-2") == null, "bad courts refused");
         check(Tournament.courtsText(Tournament.parseCourts("1-4,6,8-9")).equals("1-4, 6, 8-9"), "courts text");

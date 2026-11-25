@@ -57,11 +57,20 @@ public final class PrintSheets {
             Pool p = round.get(i);
             for (int r = 1; r <= rounds(p); r++) {
                 List<Match> ms = inRound(p, r);
-                for (int k = 0; k < ms.size(); k++) out.put(ms.get(k), c.get(i)[Math.min(k, c.get(i).length - 1)]);
+                for (int k = 0; k < ms.size(); k++) out.put(ms.get(k), c.get(i)[slot(k, r, c.get(i).length)]);
             }
         }
         return out;
     }
+
+    /**
+     * Which of a pool's courts the k-th match of round rd goes to. The matches shift one court each round, so teams
+     * move around the courts instead of one team (the top seed) staying on the same court all day.
+     */
+    public static int slot(int k, int rd, int courts) { return courts <= 0 ? 0 : (k + rd - 1) % courts; }
+
+    /** The reverse of {@link #slot}: which match of round rd is on court column col (may be past the last match). */
+    static int matchOn(int col, int rd, int courts) { return ((col - (rd - 1)) % courts + courts) % courts; }
 
     /** Matches played at the same time in a pool (= courts it needs). */
     public static int perRound(Pool p) {
@@ -137,8 +146,10 @@ public final class PrintSheets {
             for (int rd = 1; rd <= rounds(p); rd++) {
                 s.set(r, 0, "Round " + rd, Xlsx.BOLD_BOX);
                 List<Match> ms = inRound(p, rd);
-                for (int k = 0; k < c.length; k++)
-                    s.set(r, 1 + k, k < ms.size() ? num(p, ms.get(k).a) + " V " + num(p, ms.get(k).b) : "", Xlsx.BOX);
+                for (int k = 0; k < c.length; k++) {
+                    int j = matchOn(k, rd, c.length);
+                    s.set(r, 1 + k, j < ms.size() ? num(p, ms.get(j).a) + " V " + num(p, ms.get(j).b) : "", Xlsx.BOX);
+                }
                 r++;
             }
             r += 2;
@@ -176,8 +187,10 @@ public final class PrintSheets {
             r++;
             for (int rd = 1; rd <= rounds(p); rd++) {
                 List<Match> ms = inRound(p, rd);
-                for (int k = 0; k < c.length && k < ms.size(); k++) {
-                    Match m = ms.get(k);
+                for (int k = 0; k < c.length; k++) {
+                    int j = matchOn(k, rd, c.length);
+                    if (j >= ms.size()) continue;
+                    Match m = ms.get(j);
                     int col = k * 5;
                     s.set(r, col, "Rd " + rd + ":  " + num(p, m.a) + " V " + num(p, m.b), Xlsx.BOLD_BOX)
                             .set(r, col + 1, num(p, m.a), Xlsx.YELLOW).set(r, col + 2, num(p, m.b), Xlsx.YELLOW)
