@@ -386,7 +386,7 @@ async function startEmail(env, me, id, d, url) {
     sent += await mailEach(env, id, me.email, to, `${name} has started: live scores`,
       `${name} has started. Good luck!\n\nLive scores and standings (updates by itself):\n${base}/t/${id}\n\n` +
       `Your team: ${label} (${mine[0].stage}, ${mine[0].pool})\n${lines}\n\n` +
-      `After each match you'll get an email with the photo of the score sheet.`, "start");
+      `After each match you'll get an email with the photo of the score sheet.`, "start", d);
   }
   if (!any) await audit(env, id, me.email, "email", "start", { to: [], subject: "start (no player emails)", sent: 0 });
   return sent;
@@ -495,7 +495,7 @@ async function postReceipt(req, env, me, id, url) {
     `Score sheet for your match on court ${match.court} (${match.pool}, round ${match.round}):\n\n` +
     `${match.a}\n  vs\n${match.b}\n\n` + (games.length ? "Score: " + games.map(g => g.join("-")).join(", ") + "\n\n" : "") +
     `Photo of the score sheet, with the court captain's initials:\n${base}/r/${token}\n\n` +
-    `Live scores and standings: ${base}/t/${id}\n\nQuestions about a score? Talk to the tournament director.`, key);
+    `Live scores and standings: ${base}/t/${id}\n\nQuestions about a score? Talk to the tournament director.`, key, d);
   return json({ ok: true, id: rid, emailed: sent }, 201);
 }
 
@@ -512,9 +512,13 @@ function publicBase(env, url) { return (env.PUBLIC_URL || url.origin).replace(/\
  * Sends one email to each address (each player gets their own, so addresses aren't shared). Every send is in the
  * audit log. Without RESEND_API_KEY (local testing) nothing is sent but the log still records it.
  */
-async function mailEach(env, tid, by, to, subject, text, key = "") {
+async function mailEach(env, tid, by, to, subject, text, key = "", d = null) {
   let sent = 0;
+  const base = text, notes = {};
   for (const addr of to) {
+    const note = numberNote(d, addr);
+    if (note) notes[addr] = note.trim();
+    text = base + note;
     let status = "dev";
     if (env.RESEND_API_KEY) {
       const r = await fetch("https://api.resend.com/emails", {
@@ -527,8 +531,17 @@ async function mailEach(env, tid, by, to, subject, text, key = "") {
     if (status !== "dev" && status !== "sent") continue;
     sent++;
   }
-  if (to.length) await audit(env, tid, by, "email", key, { to, subject, text: text.slice(0, 2000), sent });
+  if (to.length) await audit(env, tid, by, "email", key, { to, subject, text: base.slice(0, 2000), notes, sent });
   return sent;
+}
+
+/** Players who share a full name with another player are numbered ("Pat L. (2)"); their emails say so. */
+function numberNote(d, addr) {
+  for (const w of Object.values((d && d.who) || {}))
+    for (const p of w.players || [])
+      if (p.number > 0 && p.email === addr)
+        return `\n\nNote: another player in this tournament has the same name as you, so you're listed as "${p.name}".`;
+  return "";
 }
 
 // ------------------------------------------------------------------ public: live page, receipt links, results
@@ -577,7 +590,7 @@ async function resultsEmail(env, me, id, url) {
   }
   if ((d.finalists || []).length) text += `\nQualified for the Finals:\n` + d.finalists.map(f => "- " + f).join("\n") + "\n";
   text += `\nAll scores: ${publicBase(env, url)}/t/${id}\n\nThank you for playing!`;
-  const sent = await mailEach(env, id, me.email, to, `${d.name || "Tournament"}: results`, text);
+  const sent = await mailEach(env, id, me.email, to, `${d.name || "Tournament"}: results`, text, "", d);
   return json({ ok: true, recipients: to.length, sent });
 }
 

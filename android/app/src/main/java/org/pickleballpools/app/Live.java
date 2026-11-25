@@ -107,7 +107,7 @@ final class Live {
                         Team x = ids.get(tid);
                         teams.put(new JSONObject().put("id", tid).put("label", PrintSheets.players(sn, x))
                                 .put("dupr", x.combined()).put("withdrawn", p.voided.contains(tid)));
-                        if (!who.has(tid)) who.put(tid, identities(x));
+                        if (!who.has(tid)) who.put(tid, identities(x).put("players", players(x, sn)));
                     }
                     pools.put(new JSONObject().put("stage", round == t.round2 ? "Round 2" : "Round 1").put("title", p.title())
                             .put("name", p.name).put("teams", teams));
@@ -142,6 +142,21 @@ final class Live {
         for (String e : new String[]{x.email1, x.email2})
             if (e != null && e.contains("@")) email.put(e.trim().toLowerCase(java.util.Locale.ROOT));
         return new JSONObject().put("dupr", dupr).put("email", email);
+    }
+
+    /** Each player's public name, email and number (when another player has the same full name), for emails. */
+    JSONArray players(Team x, Map<String, String> sn) throws org.json.JSONException {
+        JSONArray out = new JSONArray();
+        for (int slot = 1; slot <= 2; slot++) {
+            String shown = org.pickleballpools.core.Names.player(sn, x, slot);
+            String email = slot == 1 ? x.email1 : x.email2, id = org.pickleballpools.core.Player.normId(slot == 1 ? x.duprId1 : x.duprId2);
+            if ((email == null || email.isBlank()) && !id.isEmpty())
+                for (org.pickleballpools.core.Player pl : a.t.players)
+                    if (org.pickleballpools.core.Player.normId(pl.duprId).equals(id) && pl.email != null) email = pl.email;
+            out.put(new JSONObject().put("name", shown).put("email", email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT))
+                    .put("number", org.pickleballpools.core.Names.number(shown)));
+        }
+        return out;
     }
 
     /** Sends the pools when they changed since the last time (new pools, redo, withdrawal, rename...). */

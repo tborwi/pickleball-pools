@@ -108,8 +108,8 @@ public final class PrintSheets {
             r++;
             for (String id : p.teamIds) {
                 Team tm = ids.get(id);
-                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, Names.of(sn, tm.player1), Xlsx.LEFT_BOX)
-                        .set(r, 2, Names.of(sn, tm.player2), Xlsx.LEFT_BOX).set(r, 3, String.format(Locale.US, "%.2f", tm.combined()), Xlsx.BOX);
+                s.set(r, 0, num(p, id), Xlsx.BOX).set(r, 1, Names.player(sn, tm, 1), Xlsx.LEFT_BOX)
+                        .set(r, 2, Names.player(sn, tm, 2), Xlsx.LEFT_BOX).set(r, 3, String.format(Locale.US, "%.2f", tm.combined()), Xlsx.BOX);
                 r++;
             }
             r = Math.max(r, r - p.teamIds.size() + notes.length) + 1;

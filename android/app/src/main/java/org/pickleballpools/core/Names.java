@@ -11,8 +11,8 @@ import java.util.Map;
 /**
  * Short public names: first name and last initial ("Pat L."), used everywhere except the director's own screens
  * (live page, emails, court captains, printed sheets). When two players would get the same short name, more letters
- * of the last name are added until they differ ("Pat Lee" and "Pat Lew."). Two players with exactly the same full
- * name keep the same short name (their full names can't tell them apart either).
+ * of the last name are added until they differ ("Pat Lee" and "Pat Lew."). Players with exactly the same full name
+ * are numbered in team order: "Pat L.", "Pat L. (2)", "Pat L. (3)"; their emails tell them their number.
  */
 public final class Names {
     private Names() {}
@@ -26,7 +26,7 @@ public final class Names {
             if (p[1].isEmpty()) { out.put(me, p[0]); continue; } // one-word name: as is
             int n = 1;
             for (String other : names) {
-                if (other.equals(me)) continue;
+                if (other.equalsIgnoreCase(me)) continue; // same person's name, or a namesake (numbered later)
                 String[] q = parts(other);
                 if (!q[0].equalsIgnoreCase(p[0]) || q[1].isEmpty()) continue;
                 while (n < p[1].length() && prefix(q[1], n).equalsIgnoreCase(prefix(p[1], n))) n++;
@@ -43,16 +43,44 @@ public final class Names {
         return s == null ? c : s;
     }
 
-    /** Short names for every player in the tournament, unique within it. */
+    /**
+     * Short names for every player in the tournament, unique within it, keyed by team id + "#1" / "#2"
+     * (so two players with the same full name can get different numbers). Use {@link #player} and {@link #team}.
+     */
     public static Map<String, String> forTournament(Tournament t) {
         List<String> all = new ArrayList<>();
         for (Team x : t.teams) { all.add(x.player1); all.add(x.player2); }
-        return shortNames(all);
+        Map<String, String> base = shortNames(all);
+        Map<String, Integer> seen = new HashMap<>();
+        Map<String, String> firstSpelling = new HashMap<>();
+        Map<String, String> out = new HashMap<>();
+        for (Team x : t.teams)
+            for (int slot = 1; slot <= 2; slot++) {
+                String full = clean1(slot == 1 ? x.player1 : x.player2);
+                if (full.isEmpty()) continue;
+                String k = full.toLowerCase(Locale.ROOT);
+                int n = seen.merge(k, 1, Integer::sum);
+                String shown = of(base, firstSpelling.computeIfAbsent(k, z -> full));
+                out.put(x.id + "#" + slot, shown + (n > 1 ? " (" + n + ")" : ""));
+            }
+        return out;
+    }
+
+    /** Short name of player 1 or 2 of a team (map from {@link #forTournament}). */
+    public static String player(Map<String, String> map, Team x, int slot) {
+        String s = map.get(x.id + "#" + slot);
+        return s != null ? s : clean1(slot == 1 ? x.player1 : x.player2);
+    }
+
+    /** The number added to a player whose full name is the same as another player's, or 0. */
+    public static int number(String shortName) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(" \\((\\d+)\\)$").matcher(shortName);
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     /** "Pat L. / Sam R." */
     public static String team(Map<String, String> map, Team x) {
-        String a = of(map, x.player1), b = of(map, x.player2);
+        String a = player(map, x, 1), b = player(map, x, 2);
         if (b.isEmpty()) return a;
         if (a.isEmpty()) return b;
         return a + " / " + b;

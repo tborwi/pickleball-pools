@@ -42,7 +42,9 @@ no sign-in) and are **emailed** the photo of each score sheet from their matches
 
 Outside the director's and admin's own screens, players are shown as **first name and last initial** ("Pat L."):
 the live scores page, all emails, court captains' screens, the printed sheets and **Share results**. If two players
-would look the same, letters of the last name are added until they differ ("Pat Lee", "Pat Lew."). Middle names
+would look the same, letters of the last name are added until they differ ("Pat Lee", "Pat Lew."). Two players with
+exactly the same full name are numbered in team order ("Pat L.", "Pat L. (2)"), and the numbered player's emails
+say which name is theirs. Middle names
 and suffixes (Jr., Sr., II...) are left out. Code: `core/Names.java`.
 
 ## Live scoring

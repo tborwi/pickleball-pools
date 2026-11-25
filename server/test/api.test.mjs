@@ -63,7 +63,8 @@ check((await call("GET", "/admin/users", cap)).status === 403, "captain can't li
 const live = { pointsToWin: 11, winBy: 2, matches: [
   { key: "r1:A:t1:t4", court: 7, round: 1, pool: "Pool A", aId: "t1", bId: "t4", a: "1 Ortiz/Moore", b: "4 Ba/Bruckbauer" },
   { key: "r1:A:t2:t3", court: 9, round: 1, pool: "Pool A", aId: "t2", bId: "t3", a: "2 Demski/Weisbrot", b: "3 Lohman/Zygarlicke" }],
-  who: { t1: { email: ["player1@example.com"], dupr: ["AAA111"] }, t2: { email: [], dupr: ["BBB222"] } } };
+  who: { t1: { email: ["player1@example.com"], dupr: ["AAA111"], players: [{ name: "Pat L. (2)", email: "player1@example.com", number: 2 }] },
+         t2: { email: [], dupr: ["BBB222"] } } };
 check((await call("POST", `/tournaments/${tid}/scores`, dir, { key: "r1:A:t1:t4", games: [[11, 5], [11, 9]] })).status === 400, "no scores before pools are published");
 check((await call("PUT", `/tournaments/${tid}/live`, cap, { data: live })).status === 403, "captain can't publish pools");
 check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).data.emailed === 0, "director publishes pools (not started: no email)");
@@ -73,6 +74,7 @@ check((await call("PUT", `/tournaments/${tid}/live`, dir, { data: live })).data.
 const st = (await call("GET", `/tournaments/${tid}/audit`, dir)).data.entries.find(e => e.key === "start");
 check(st && st.detail.to[0] === "player1@example.com" && st.detail.text.includes(`/t/${tid}`) && st.detail.text.includes("Round 1, court 7: vs 4 Ba/Bruckbauer"),
   "start email has the live link and the team's own schedule");
+check((st.detail.notes["player1@example.com"] || "").includes('listed as "Pat L. (2)"'), "a numbered player's email tells them their number");
 let lv = await call("GET", `/tournaments/${tid}/live`, cap);
 check(lv.data.data.matches.length === 1 && lv.data.data.matches[0].court === 7, "captain of courts 7,8 sees only the court 7 match");
 check((await call("POST", `/tournaments/${tid}/scores`, cap, { key: "r1:A:t2:t3", games: [[11, 5], [11, 9]] })).status === 403, "captain can't score court 9");

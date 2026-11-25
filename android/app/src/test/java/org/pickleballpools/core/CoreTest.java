@@ -169,6 +169,12 @@ public final class CoreTest {
                 "same short name -> more letters until unique (Pat Lee, Pat Lew., Pat Lees.)");
         check(sn.get("Cher").equals("Cher") && sn.get("Bob Allen Smith Jr.").equals("Bob S.") && Names.of(sn, "Ann Marie").equals("Ann M."),
                 "one-word names, middle names, suffixes, extra spaces");
+        Tournament same = new Tournament();
+        Team s1 = same.addTeam(), s2 = same.addTeam();
+        s1.player1 = "Pat Lee"; s1.player2 = "Sam Ray"; s2.player1 = "Ann Fox"; s2.player2 = "pat  lee";
+        Map<String, String> sm = Names.forTournament(same);
+        check(Names.team(sm, s1).equals("Pat L. / Sam R.") && Names.team(sm, s2).equals("Ann F. / Pat L. (2)"), "same full name: numbered (2)");
+        check(Names.number(Names.player(sm, s2, 2)) == 2 && Names.number(Names.player(sm, s1, 1)) == 0, "number of a numbered player");
         Tournament ti = new Tournament();
         Team d1 = ti.addTeam("q2zx9p", "L8EW8W"), d2 = ti.addTeam("L8EW8W", "Q2ZX9P"), d3 = ti.addTeam("", "AB12CD");
         check(d1.id.equals("L8EW8W+Q2ZX9P"), "team id is the sorted DUPR ID pair");
