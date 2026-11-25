@@ -1,0 +1,13 @@
+{
+  "name": "pickleball-pools-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "test": "node test/api.test.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.40.0"
+  }
+}

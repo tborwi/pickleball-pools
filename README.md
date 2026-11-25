@@ -30,7 +30,13 @@ Originally written for the Heart of Wisconsin Pickleball Association (Plover, WI
    the scores entered so far.
 
 All of these numbers can be changed in **Settings**: number of pools, teams that advance, finalists per pool,
-points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it.
+points per game, and win-by. Data stays on the device; nothing is sent anywhere unless you share it or sign in.
+
+## Accounts (optional)
+
+Sign in with Google or an emailed code to get roles: admin, tournament director, court captain, treasurer and
+player. It needs your organization's own small server (free on Cloudflare): see [ROLES.md](ROLES.md) and
+[server/README.md](server/README.md). Without it, the app works exactly as before.
 
 ## When players or teams drop out
 
@@ -105,6 +111,8 @@ Without it, the APK uses a debug key. Use the same key every time, or phones can
 | `app/MainActivity.java` | All screens, built in code with big text and buttons |
 | `app/RegistrationsScreen.java` | Registrations screen: import, column matching, ratings, payment link |
 | `branding/` | Logo and app name, swapped in at build time |
+| `app/AccountScreen.java`, `Api.java` | Sign-in, my details, people and roles, court captains (optional server) |
+| `server/` | The accounts server (Cloudflare Worker + D1), with its own tests |
 | `app/Store.java` | Saves everything to one JSON file on the device |
 
 `core/` is plain Java with no Android code, so the rules can be tested and reused (for example in a web version).

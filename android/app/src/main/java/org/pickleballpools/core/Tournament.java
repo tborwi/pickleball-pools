@@ -23,6 +23,7 @@ public final class Tournament {
     public int pointsToWin = 11;
     public int winBy = 2; // USA Pickleball 15.C: all scoring options are win by two (win by 1 only for team play)
 
+    public String serverId = "";     // id on the accounts server once put online (for court captains)
     public int firstCourt = 1;       // printed sheets: courts are numbered on from here, pool by pool
     public String round1When = "", round2When = ""; // printed sheets, e.g. "Saturday 9:00am"
 

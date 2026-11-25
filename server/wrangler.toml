@@ -1,0 +1,18 @@
+# Pickleball Pools accounts server. See README.md in this folder.
+name = "pickleball-pools"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pp"
+database_id = "replace-with-your-d1-database-id"
+
+[vars]
+# Where Google sign-in returns to the app (the app registers this link).
+APP_REDIRECT = "pickleballpools://signin"
+# Name shown in sign-in emails.
+ORG_NAME = "Pickleball Pools"
+# The first admin (recommended). Without it, the first person to sign in becomes admin.
+ADMIN_EMAIL = ""
+# Set with `wrangler secret put`: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, RESEND_API_KEY, MAIL_FROM

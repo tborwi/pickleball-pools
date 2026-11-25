@@ -49,7 +49,7 @@ final class Store {
                 .put("name", t.name).put("poolCount", t.poolCount).put("advancePerPool", t.advancePerPool)
                 .put("finalistsPerPool", t.finalistsPerPool).put("pointsToWin", t.pointsToWin)
                 .put("winBy", t.winBy).put("nextId", t.nextId).put("paymentLink", t.paymentLink)
-                .put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When);
+                .put("serverId", t.serverId).put("firstCourt", t.firstCourt).put("round1When", t.round1When).put("round2When", t.round2When);
         if (t.importColumns != null) {
             JSONArray c = new JSONArray();
             for (int i : t.importColumns) c.put(i);
@@ -94,6 +94,7 @@ final class Store {
         t.winBy = o.optInt("winBy", t.winBy);
         t.nextId = o.optInt("nextId", 1);
         t.paymentLink = o.optString("paymentLink");
+        t.serverId = o.optString("serverId");
         t.firstCourt = o.optInt("firstCourt", 1);
         t.round1When = o.optString("round1When");
         t.round2When = o.optString("round2When");

@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
     final Deque<Runnable> back = new ArrayDeque<>();
     Runnable current;
     final RegistrationsScreen regs = new RegistrationsScreen(this);
+    AccountScreen account;
 
     @SuppressWarnings("deprecation")
     @Override protected void onActivityResult(int req, int res, Intent data) {
@@ -65,7 +66,19 @@ public class MainActivity extends Activity {
         sv.addView(page);
         sv.setFitsSystemWindows(true);
         setContentView(sv);
+        account = new AccountScreen(this);
         go(this::home, false);
+        signInLink(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        signInLink(i);
+    }
+
+    /** Google sign-in returns here through the link pickleballpools://signin?code=... */
+    void signInLink(Intent i) {
+        if (i != null && i.getData() != null && "pickleballpools".equals(i.getData().getScheme())) account.onSignInLink(i.getData());
     }
 
     @SuppressWarnings("deprecation")
@@ -124,6 +137,8 @@ public class MainActivity extends Activity {
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
         button("Settings", v -> settings());
+        button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
+                : "Account (sign in, roles)", v -> go(account::show, true));
         button("Start a new tournament", v -> newTournament());
     }
 
