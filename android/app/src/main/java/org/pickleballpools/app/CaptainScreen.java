@@ -66,8 +66,8 @@ final class CaptainScreen {
             List<int[]> games = Live.games(q.has(key) ? q.optJSONArray(key) : scores == null ? null : scores.optJSONArray(key));
             String txt = "Court " + m.optString("court") + " · " + m.optString("pool") + "\n" + m.optString("a") + "\n   vs  "
                     + m.optString("b") + "\n   " + (games.isEmpty() ? "not played yet" : text(games)) + (q.has(key) ? "  (sending…)" : "");
-            TextView row = a.text(txt, 18, false, Color.BLACK);
-            a.card(row).setBackground(a.box(games.isEmpty() ? 0xFFFFF8E1 : MainActivity.LIGHT));
+            TextView row = a.text(txt, 18, false, MainActivity.INK);
+            a.card(row).setBackground(a.box(games.isEmpty() ? MainActivity.PENDING : MainActivity.LIGHT));
             JSONArray rc = receipts(s, key);
             if (rc.length() > 0) row.append("\n   📷 score sheet photo sent");
             Runnable photo = () -> a.receipts.take(id, key);

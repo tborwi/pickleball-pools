@@ -39,7 +39,41 @@ import java.util.Map;
  * Screens: Home -> Teams | a Pool (standings + matches). Every change is saved immediately.
  */
 public class MainActivity extends Activity {
-    static final int GREEN = 0xFF1B5E20, LIGHT = 0xFFE8F5E9, GREY = 0xFF555555, RED = 0xFFB71C1C;
+    /** Colors for the current theme (light or dark); set by palette() before any screen is drawn. */
+    static int GREEN, LIGHT, GREY, RED, INK, PAGE, CARD, PENDING, EDGE;
+    static boolean dark;
+    static final String[] THEMES = {"System", "Light", "Dark"};
+
+    static void palette(boolean d) {
+        dark = d;
+        if (d) {
+            GREEN = 0xFF81C784; LIGHT = 0xFF1F3323; GREY = 0xFFB4B4B4; RED = 0xFFEF9A9A; INK = 0xFFECECEC;
+            PAGE = 0xFF121212; CARD = 0xFF1E1E1E; PENDING = 0xFF3A3220; EDGE = 0xFF3A3A3A;
+        } else {
+            GREEN = 0xFF1B5E20; LIGHT = 0xFFE8F5E9; GREY = 0xFF555555; RED = 0xFFB71C1C; INK = 0xFF000000;
+            PAGE = 0xFFFFFFFF; CARD = 0xFFF5F5F5; PENDING = 0xFFFFF8E1; EDGE = 0xFFCCCCCC;
+        }
+    }
+
+    int themeSetting() { return getSharedPreferences("ui", MODE_PRIVATE).getInt("theme", 0); }
+
+    /** 0 = follow the phone, 1 = light, 2 = dark. */
+    boolean wantDark() {
+        int t = themeSetting();
+        if (t != 0) return t == 2;
+        return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    void chooseTheme() {
+        int cur = themeSetting();
+        new AlertDialog.Builder(this).setTitle("Appearance").setSingleChoiceItems(THEMES, cur, (d, w) -> {
+            d.dismiss();
+            if (w == cur) return;
+            getSharedPreferences("ui", MODE_PRIVATE).edit().putInt("theme", w).apply();
+            recreate();
+        }).setNegativeButton("Cancel", null).show();
+    }
 
     Tournament t;
     LinearLayout page;
@@ -59,10 +93,12 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onCreate(Bundle b) {
+        palette(wantDark());
+        setTheme(dark ? android.R.style.Theme_Material : android.R.style.Theme_Material_Light_DarkActionBar);
         super.onCreate(b);
         t = Store.load(this);
         ScrollView sv = new ScrollView(this);
-        sv.setBackgroundColor(Color.WHITE);
+        sv.setBackgroundColor(PAGE);
         page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
@@ -141,7 +177,7 @@ public class MainActivity extends Activity {
         } else {
             if (!t.started()) {
                 text("Check the pools, then start. Starting locks the teams and pools and opens score entry "
-                        + "(court captains too).", 17, false, Color.BLACK);
+                        + "(court captains too).", 17, false, MainActivity.INK);
                 button("▶  Start the tournament", v -> startTournament());
             }
             heading("Round 1");
@@ -178,6 +214,7 @@ public class MainActivity extends Activity {
         if (!t.round1.isEmpty()) button("Print sheets (Excel)", v -> printSheets());
         button("Share results (text, email…)", v -> share());
         button("Settings", v -> settings());
+        button("Appearance: " + THEMES[themeSetting()], v -> chooseTheme());
         button(account.api.signedIn() ? "Account: " + AccountScreen.roleNames(account.api.me().optJSONArray("roles"))
                 : "Account (sign in, roles)", v -> go(account::show, true));
         button("Start a new tournament", v -> newTournament());
@@ -324,7 +361,7 @@ public class MainActivity extends Activity {
             Team x = s.get(i);
             TextView row = text(String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f%s",
                     i + 1, x.label(), x.combined(), x.player1, x.dupr1, x.player2, x.dupr2,
-                    x.duprIds().size() == 2 ? "" : "\n     (no DUPR ID" + (x.duprIds().isEmpty() ? "s" : " for one player") + ")"), 18, false, Color.BLACK);
+                    x.duprIds().size() == 2 ? "" : "\n     (no DUPR ID" + (x.duprIds().isEmpty() ? "s" : " for one player") + ")"), 18, false, MainActivity.INK);
             card(row);
             row.setOnClickListener(v -> editTeam(x));
         }
@@ -465,7 +502,7 @@ public class MainActivity extends Activity {
             String s = String.format(Locale.US, "%s  %s\n     Won %d  Lost %d  ·  Games %d-%d\n     Points %+d  (%d scored)",
                     r.withdrawn ? "–" : r.place + ".", r.team.label(), r.wins, r.losses, r.gamesWon, r.gamesLost, r.diff(), r.pointsFor);
             if ((p.complete() || r.withdrawn) && !r.tiebreak.isEmpty()) s += "\n     " + r.tiebreak; // tiebreak notes once final
-            card(text(s, 17, false, r.withdrawn ? GREY : r.tiebreak.equals(Standings.UNRESOLVED) ? RED : Color.BLACK));
+            card(text(s, 17, false, r.withdrawn ? GREY : r.tiebreak.equals(Standings.UNRESOLVED) ? RED : MainActivity.INK));
         }
         heading("Matches  (tap to enter scores)");
         int round = 0;
@@ -476,8 +513,8 @@ public class MainActivity extends Activity {
                 s += "   doesn't count: " + ids.get(p.voided.contains(m.a) ? m.a : m.b).label() + " dropped out";
             else s += m.games.isEmpty() ? "   not played yet" : "   " + m.scoreText()
                     + (m.done() ? "   → " + ids.get(m.winner()).label() + " won" : "");
-            TextView row = text(s, 18, false, Color.BLACK);
-            card(row).setBackground(box(m.done() ? LIGHT : 0xFFFFF8E1));
+            TextView row = text(s, 18, false, MainActivity.INK);
+            card(row).setBackground(box(m.done() ? LIGHT : MainActivity.PENDING));
             org.json.JSONArray rc = live.directing() ? live.receiptsFor(t.matchKey(p, m)) : null;
             if (rc != null) row.append("\n   📷 " + rc.length() + " score sheet photo" + (rc.length() == 1 ? "" : "s"));
             row.setOnClickListener(v -> {
@@ -514,13 +551,13 @@ public class MainActivity extends Activity {
         if (warning != null) f.addView(free(text(warning, 15, true, RED)));
         LinearLayout header = new LinearLayout(this);
         header.addView(cell(text("", 14, false, GREY), 1.4f));
-        header.addView(cell(text(aName, 15, true, Color.BLACK), 2));
-        header.addView(cell(text(bName, 15, true, Color.BLACK), 2));
+        header.addView(cell(text(aName, 15, true, MainActivity.INK), 2));
+        header.addView(cell(text(bName, 15, true, MainActivity.INK), 2));
         f.addView(header);
         EditText[][] in = new EditText[3][2];
         for (int g = 0; g < 3; g++) {
             LinearLayout row = new LinearLayout(this);
-            row.addView(cell(text("Game " + (g + 1), 15, false, Color.BLACK), 1.4f));
+            row.addView(cell(text("Game " + (g + 1), 15, false, MainActivity.INK), 1.4f));
             for (int s = 0; s < 2; s++) {
                 EditText e = new EditText(this);
                 e.setInputType(InputType.TYPE_CLASS_NUMBER);
@@ -729,7 +766,7 @@ public class MainActivity extends Activity {
 
     void title(String s) { text(s, 28, true, GREEN); }
 
-    void heading(String s) { text(s, 22, true, Color.BLACK).setPadding(0, dp(20), 0, dp(4)); }
+    void heading(String s) { text(s, 22, true, MainActivity.INK).setPadding(0, dp(20), 0, dp(4)); }
 
     void note(String s) { text(s, 17, false, GREY); }
 
@@ -751,12 +788,12 @@ public class MainActivity extends Activity {
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(dp(10));
-        g.setStroke(dp(1), 0xFFCCCCCC);
+        g.setStroke(dp(1), EDGE);
         return g;
     }
 
     TextView card(TextView v) {
-        v.setBackground(box(0xFFF5F5F5));
+        v.setBackground(box(CARD));
         v.setPadding(dp(12), dp(10), dp(12), dp(10));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(6);

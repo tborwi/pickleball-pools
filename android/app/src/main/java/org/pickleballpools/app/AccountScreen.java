@@ -109,7 +109,7 @@ final class AccountScreen {
                     case "unlocked": what = "🔓 Pools unlocked"; break;
                     default: what = e.optString("action");
                 }
-                android.widget.TextView v = a.card(a.text(when + " · " + e.optString("email") + "\n" + what, 16, false, android.graphics.Color.BLACK));
+                android.widget.TextView v = a.card(a.text(when + " · " + e.optString("email") + "\n" + what, 16, false, MainActivity.INK));
                 String rid = d.optString("receipt");
                 if (!rid.isEmpty()) v.setOnClickListener(x -> a.receipts.view(a.t.serverId, rid, "Score sheet photo"));
             }

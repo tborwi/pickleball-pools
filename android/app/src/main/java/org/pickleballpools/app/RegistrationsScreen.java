@@ -84,7 +84,7 @@ final class RegistrationsScreen {
         String s = x.name + "   ·   " + (x.duprId.isEmpty() ? "no DUPR ID" : x.duprId) + "\n     "
                 + (x.rating > 0 ? "DUPR " + MainActivity.num(x.rating) + " (checked " + x.ratingDate + ")" : "DUPR rating: tap to enter");
         if (!note.isEmpty()) s += "\n     " + note;
-        TextView v = a.card(a.text(s, 17, false, x.rating > 0 || !note.isEmpty() ? Color.BLACK : MainActivity.RED));
+        TextView v = a.card(a.text(s, 17, false, x.rating > 0 || !note.isEmpty() ? MainActivity.INK : MainActivity.RED));
         v.setOnClickListener(c -> editPlayer(x));
     }
 
@@ -226,7 +226,7 @@ final class RegistrationsScreen {
         f.addView(a.free(a.text("Check which column holds each item. This is remembered for next time.", 15, false, MainActivity.GREY)));
         Spinner[] sp = new Spinner[Registration.FIELDS.length];
         for (int i = 0; i < sp.length; i++) {
-            f.addView(a.free(a.text(Registration.FIELDS[i], 16, true, Color.BLACK)));
+            f.addView(a.free(a.text(Registration.FIELDS[i], 16, true, MainActivity.INK)));
             sp[i] = new Spinner(a);
             sp[i].setAdapter(new ArrayAdapter<>(a, android.R.layout.simple_spinner_dropdown_item, choices));
             sp[i].setSelection(map[i] + 1);
