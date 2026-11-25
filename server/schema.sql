@@ -95,3 +95,20 @@ CREATE TABLE IF NOT EXISTS receipts (
   token TEXT NOT NULL UNIQUE           -- long random part of the photo link emailed to the match's players
 );
 CREATE INDEX IF NOT EXISTS receipts_t ON receipts (tournament_id, match_key);
+-- Photos are kept here when no R2 bucket is bound (a ~300 KB JPEG per row; D1 rows can hold up to 2 MB).
+CREATE TABLE IF NOT EXISTS receipt_images (
+  id TEXT PRIMARY KEY,
+  data BLOB NOT NULL
+);
+-- Club settings (club-specific, edited by admins in the app): name, contact, payment link, default format.
+CREATE TABLE IF NOT EXISTS club (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+-- Saved rosters, e.g. "practice": one player per line, partners on consecutive lines, "*" = highest rated.
+CREATE TABLE IF NOT EXISTS rosters (
+  name TEXT PRIMARY KEY,
+  players TEXT NOT NULL,
+  updated INTEGER NOT NULL,
+  updated_by TEXT NOT NULL
+);

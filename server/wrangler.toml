@@ -17,7 +17,8 @@ ORG_NAME = "Pickleball Pools"
 ADMIN_EMAIL = ""
 # Set with `wrangler secret put`: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, RESEND_API_KEY, MAIL_FROM
 
-# Photo receipts (score sheet pictures). Create once: npx wrangler r2 bucket create pp-receipts
-[[r2_buckets]]
-binding = "RECEIPTS"
-bucket_name = "pp-receipts"
+# Score sheet photos are stored in the database. For lots of photos you can use an R2 bucket instead
+# (npx wrangler r2 bucket create pp-receipts; R2 needs a payment method on the Cloudflare account):
+# [[r2_buckets]]
+# binding = "RECEIPTS"
+# bucket_name = "pp-receipts"

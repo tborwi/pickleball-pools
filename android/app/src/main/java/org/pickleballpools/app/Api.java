@@ -32,7 +32,8 @@ final class Api {
         prefs = a.getSharedPreferences("account", Context.MODE_PRIVATE);
     }
 
-    String server() { return prefs.getString("server", ""); }
+    /** The server set in Account, or the one built into this club's app (branding serverUrl). */
+    String server() { return prefs.getString("server", a.getString(R.string.default_server)); }
 
     void setServer(String url) {
         String u = url.trim().replaceAll("/+$", "");

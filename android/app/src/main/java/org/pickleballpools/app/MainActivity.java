@@ -625,6 +625,21 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** New tournaments start with the club's settings (from its server), when signed in. */
+    Tournament clubDefaults(Tournament x) {
+        org.json.JSONObject c = account.club();
+        int practicePools = x.poolCount;
+        x.poolCount = c.optInt("poolCount", x.poolCount);
+        if (x.teams.size() > 0 && x.teams.size() < x.poolCount * 2) x.poolCount = practicePools; // small practice roster
+        x.advancePerPool = c.optInt("advancePerPool", x.advancePerPool);
+        x.finalistsPerPool = c.optInt("finalistsPerPool", x.finalistsPerPool);
+        x.pointsToWin = c.optInt("pointsToWin", x.pointsToWin);
+        x.winBy = c.optInt("winBy", x.winBy);
+        x.firstCourt = c.optInt("firstCourt", x.firstCourt);
+        if (!c.optString("paymentLink").isEmpty()) x.paymentLink = c.optString("paymentLink");
+        return x;
+    }
+
     /** Optional private roster for the practice tournament (assets/practice-players.txt, not in the public repo). */
     List<String> practiceRoster() {
         try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(getAssets().open("practice-players.txt"),
@@ -641,8 +656,20 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Start a new tournament?")
                 .setMessage("This erases all teams and scores on this device. Share the results first if you need them.\n\n"
                         + "Practice tournament: 16 made-up teams, to try everything before a real event.")
-                .setPositiveButton("Empty", (d, w) -> { t = new Tournament(); save(); back.clear(); refresh(); })
-                .setNeutralButton("Practice", (d, w) -> { t = Tournament.practice(practiceRoster()); save(); back.clear(); refresh(); })
+                .setPositiveButton("Empty", (d, w) -> { t = clubDefaults(new Tournament()); save(); back.clear(); refresh(); })
+                .setNeutralButton("Practice", (d, w) -> {
+                    Runnable local = () -> { t = clubDefaults(Tournament.practice(practiceRoster())); save(); back.clear(); refresh(); };
+                    if (!account.api.signedIn() || !(account.api.has("admin") || account.api.has("director"))) { local.run(); return; }
+                    // The club's practice roster from its server, if it has one
+                    account.api.call("GET", "/rosters/practice", null, r -> {
+                        org.json.JSONArray p = r.optJSONArray("players");
+                        if (p == null || p.length() < 8) { local.run(); return; }
+                        List<String> l = new ArrayList<>();
+                        for (int i = 0; i < p.length(); i++) l.add(p.optString(i));
+                        t = clubDefaults(Tournament.practice(l));
+                        save(); back.clear(); refresh();
+                    }, (net, msg) -> local.run());
+                })
                 .setNegativeButton("Cancel", null).show();
     }
 

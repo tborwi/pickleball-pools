@@ -10,3 +10,4 @@ android/keystore.properties
 *.bak-*
 homelab/
 android/app/src/main/assets/practice-players.txt
+branding/branding.local.properties

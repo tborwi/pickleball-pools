@@ -59,7 +59,11 @@ final class AccountScreen {
                     ? "court captain" + (x.optString("courts").isEmpty() ? "" : ", courts " + x.optString("courts")) : "director"));
         }
         a.button("My details (name, phone)", v -> details());
-        if (api.has("admin")) a.button("People and roles", v -> a.go(this::people, true));
+        if (api.has("admin")) {
+            a.button("People and roles", v -> a.go(this::people, true));
+            a.button("Club settings", v -> clubSettings());
+            a.button("Practice roster", v -> practiceRoster());
+        }
         if (api.has("admin") || api.has("director")) {
             if (a.t.serverId.isEmpty()) a.button("Put this tournament online (for court captains)", v -> putOnline());
             else a.button("Court captains for " + a.t.name, v -> a.go(this::captains, true));
@@ -121,6 +125,68 @@ final class AccountScreen {
             api.setMe(r);
             if (!r.toString().equals(before)) a.refresh();
         }, (net, msg) -> {});
+        api.call("GET", "/club", null, r -> a.getSharedPreferences("account", 0).edit()
+                .putString("club", r.optJSONObject("club") == null ? "{}" : r.optJSONObject("club").toString()).apply(), (net, msg) -> {});
+    }
+
+    /** The club's settings from the server (last copy), or empty. */
+    JSONObject club() {
+        try { return new JSONObject(a.getSharedPreferences("account", 0).getString("club", "{}")); } catch (Exception e) { return new JSONObject(); }
+    }
+
+    static final String[][] CLUB_FIELDS = {{"name", "Club name"}, {"contactEmail", "Contact email (for players' questions)"},
+            {"paymentLink", "Payment link (Zeffy, Stripe...)"}, {"poolCount", "Round 1 pools"},
+            {"advancePerPool", "Teams per pool to the Championship bracket"}, {"finalistsPerPool", "Teams per Championship pool to the Finals"},
+            {"pointsToWin", "Games are played to"}, {"winBy", "Win by (USA Pickleball: 2)"}, {"firstCourt", "First court number"}};
+
+    /** Admins: the club's settings, kept on the club's server. New tournaments start with them. */
+    void clubSettings() {
+        JSONObject c = club();
+        LinearLayout f = a.form();
+        EditText[] in = new EditText[CLUB_FIELDS.length];
+        for (int i = 0; i < CLUB_FIELDS.length; i++) {
+            boolean number = i >= 3;
+            in[i] = a.field(f, CLUB_FIELDS[i][1], c.optString(CLUB_FIELDS[i][0]), number);
+            if (!number) in[i].setInputType(InputType.TYPE_CLASS_TEXT | (i == 0 ? InputType.TYPE_TEXT_FLAG_CAP_WORDS : InputType.TYPE_TEXT_VARIATION_URI));
+        }
+        new AlertDialog.Builder(a).setTitle("Club settings").setView(a.scroll(f))
+                .setPositiveButton("Save", (d, w) -> {
+                    JSONObject b = new JSONObject();
+                    try {
+                        for (int i = 0; i < CLUB_FIELDS.length; i++) b.put(CLUB_FIELDS[i][0], in[i].getText().toString().trim());
+                        api.call("PUT", "/club", new JSONObject().put("club", b), r -> {
+                            a.getSharedPreferences("account", 0).edit().putString("club", r.optJSONObject("club").toString()).apply();
+                            a.toast("Club settings saved");
+                        });
+                    } catch (Exception ignored) {}
+                })
+                .setNegativeButton("Cancel", null).show();
+    }
+
+    /** Admins: the practice tournament's players, kept on the club's server (not in the public app). */
+    void practiceRoster() {
+        api.call("GET", "/rosters/practice", null, r -> {
+            JSONArray p = r.optJSONArray("players");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; p != null && i < p.length(); i++) sb.append(p.optString(i)).append('\n');
+            LinearLayout f = a.form();
+            f.addView(a.free(a.text("One player per line. Partners on consecutive lines. Add * after a name to make that "
+                    + "player the highest rated. At least 8 players.", 15, false, MainActivity.GREY)));
+            EditText e = new EditText(a);
+            e.setMinLines(10);
+            e.setGravity(android.view.Gravity.TOP);
+            e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+            e.setText(sb.toString());
+            f.addView(e);
+            new AlertDialog.Builder(a).setTitle("Practice roster").setView(a.scroll(f))
+                    .setPositiveButton("Save", (d, w) -> {
+                        JSONArray out = new JSONArray();
+                        for (String l : e.getText().toString().split("\n")) if (!l.isBlank()) out.put(l.trim());
+                        try { api.call("PUT", "/rosters/practice", new JSONObject().put("players", out), rr -> a.toast("Practice roster saved")); }
+                        catch (Exception ignored) {}
+                    })
+                    .setNegativeButton("Cancel", null).show();
+        });
     }
 
     static String roleNames(JSONArray roles) {

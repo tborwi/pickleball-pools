@@ -53,6 +53,12 @@ async function route(req, env) {
   if ((p === "/admin/roles" && m === "DELETE") || (p === "/admin/roles/remove" && m === "POST")) { need(me, "admin"); return revokeRole(req, env, me); }
   if (p === "/admin/audit" && m === "GET") { need(me, "admin"); return getAudit(env, "", url); }
 
+  if (p === "/club" && m === "GET") return getClub(env);
+  if (p === "/club" && m === "PUT") { need(me, "admin"); return putClub(req, env, me); }
+  const ro = p.match(/^\/rosters\/([\w-]{1,40})$/);
+  if (ro && m === "GET") { need(me, "admin", "director"); return getRoster(env, ro[1]); }
+  if (ro && m === "PUT") { need(me, "admin"); return putRoster(req, env, me, ro[1]); }
+
   if (p === "/tournaments" && m === "GET") return listTournaments(env, me);
   if (p === "/tournaments" && m === "POST") { need(me, "admin", "director"); return createTournament(req, env, me); }
   const t = p.match(/^\/tournaments\/([\w-]+)\/staff$/);
@@ -482,7 +488,7 @@ async function postReceipt(req, env, me, id, url) {
   const u = new Uint8Array(bytes);
   if (u[0] !== 0xff || u[1] !== 0xd8) throw new Http(400, "That isn't a JPEG photo.");
   const rid = randomToken(12), token = randomToken(24);
-  await env.RECEIPTS.put(`${id}/${rid}.jpg`, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  await putImage(env, id, rid, bytes);
   await env.DB.prepare("INSERT INTO receipts (id, tournament_id, match_key, entered_by, created, size, token) VALUES (?, ?, ?, ?, ?, ?, ?)")
     .bind(rid, id, key, me.email, nowS(), bytes.byteLength, token).run();
   await audit(env, id, me.email, "receipt", key, { receipt: rid, court: match.court, a: match.a, b: match.b });
@@ -571,9 +577,8 @@ async function publicLive(env, id) {
 async function receiptByToken(env, token) {
   const r = await env.DB.prepare("SELECT id, tournament_id FROM receipts WHERE token = ?").bind(token).first();
   if (!r) throw new Http(404, "No such photo.");
-  const obj = await env.RECEIPTS.get(`${r.tournament_id}/${r.id}.jpg`);
-  if (!obj) throw new Http(404, "Photo missing.");
-  return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+  const img = await getImage(env, r.tournament_id, r.id);
+  return new Response(img, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
 }
 
 /** Emails every player the final (or current) standings. ?dry=1 only counts the recipients. */
@@ -642,9 +647,65 @@ async function getReceipt(env, me, id, rid) {
   const a = await access(env, me, id);
   const match = d.matches.find(x => x.key === r.match_key);
   if (a.kind !== "all" && !(match && canSeeMatch(a, match))) throw new Http(403, "You can only see receipts of your own courts.");
-  const obj = await env.RECEIPTS.get(`${id}/${rid}.jpg`);
-  if (!obj) throw new Http(404, "Photo missing.");
-  return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+  const img = await getImage(env, id, rid);
+  return new Response(img, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+}
+
+/** Photo storage: an R2 bucket if one is bound (RECEIPTS), otherwise the database. */
+async function putImage(env, tid, rid, bytes) {
+  if (env.RECEIPTS) await env.RECEIPTS.put(`${tid}/${rid}.jpg`, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  else await env.DB.prepare("INSERT INTO receipt_images (id, data) VALUES (?, ?)").bind(rid, bytes).run();
+}
+
+async function getImage(env, tid, rid) {
+  if (env.RECEIPTS) {
+    const obj = await env.RECEIPTS.get(`${tid}/${rid}.jpg`);
+    if (obj) return obj.body;
+  }
+  const row = await env.DB.prepare("SELECT data FROM receipt_images WHERE id = ?").bind(rid).first();
+  if (!row) throw new Http(404, "Photo missing.");
+  return new Uint8Array(row.data);
+}
+
+// ------------------------------------------------------------------ club settings and rosters
+
+const CLUB_KEYS = ["name", "contactEmail", "paymentLink", "poolCount", "advancePerPool", "finalistsPerPool", "pointsToWin", "winBy", "firstCourt"];
+
+async function getClub(env) {
+  const rows = (await env.DB.prepare("SELECT key, value FROM club").all()).results;
+  const club = {};
+  for (const r of rows) if (CLUB_KEYS.includes(r.key)) club[r.key] = r.value;
+  return json({ club });
+}
+
+async function putClub(req, env, me) {
+  const b = (await body(req)).club || {};
+  for (const k of Object.keys(b)) {
+    if (!CLUB_KEYS.includes(k)) throw new Http(400, "Unknown setting: " + k);
+    const v = String(b[k] ?? "").trim().slice(0, 300);
+    if (["poolCount", "advancePerPool", "finalistsPerPool", "pointsToWin", "winBy", "firstCourt"].includes(k) && v !== "" && !/^\d{1,2}$/.test(v))
+      throw new Http(400, k + " must be a whole number.");
+    if (v === "") await env.DB.prepare("DELETE FROM club WHERE key = ?").bind(k).run();
+    else await env.DB.prepare("INSERT INTO club (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(k, v).run();
+  }
+  await audit(env, "", me.email, "club", "", { changed: Object.keys(b) });
+  return getClub(env);
+}
+
+async function getRoster(env, name) {
+  const r = await env.DB.prepare("SELECT players, updated, updated_by FROM rosters WHERE name = ?").bind(name).first();
+  return json({ name, players: r ? r.players.split("\n") : [], updated: r ? r.updated : 0, by: r ? r.updated_by : "" });
+}
+
+async function putRoster(req, env, me, name) {
+  const players = (await body(req)).players;
+  if (!Array.isArray(players) || players.length > 400) throw new Http(400, "Expected a list of players.");
+  const text = players.map(x => String(x).replace(/[\r\n]/g, " ").trim().slice(0, 80)).filter(Boolean).join("\n");
+  await env.DB.prepare("INSERT INTO rosters (name, players, updated, updated_by) VALUES (?, ?, ?, ?) " +
+    "ON CONFLICT(name) DO UPDATE SET players = excluded.players, updated = excluded.updated, updated_by = excluded.updated_by")
+    .bind(name, text, nowS(), me.email).run();
+  await audit(env, "", me.email, "roster", "", { name, players: text.split("\n").length });
+  return getRoster(env, name);
 }
 
 // ------------------------------------------------------------------ audit

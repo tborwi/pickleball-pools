@@ -10,6 +10,11 @@ club-sized organization.
 
 ## Put it online (your organization's own Cloudflare account)
 
+Keep your club's values out of the public repo: copy `wrangler.toml` to `wrangler.local.toml` (git-ignored), fill in
+the database id, `ADMIN_EMAIL` and `ORG_NAME` there, and add `-c wrangler.local.toml` to the wrangler commands below.
+Put your server address in `branding/branding.local.properties` (`serverUrl=...`, also git-ignored) so your club's app
+build has it built in.
+
 1. `npm install`, then `npx wrangler login`.
 2. `npx wrangler d1 create pp`, and copy the `database_id` it prints into `wrangler.toml`.
 3. `npx wrangler d1 execute pp --remote --file schema.sql` and `npx wrangler r2 bucket create pp-receipts` (score sheet photos;

@@ -8,6 +8,9 @@ if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it)
 def brandingDir = rootProject.file('../branding')
 def branding = new Properties()
 brandingDir.toPath().resolve('branding.properties').toFile().withInputStream { branding.load(it) }
+// Club-specific, not in the public repo (git-ignored): e.g. serverUrl=https://... for your club's own builds
+def localBranding = new File(brandingDir, 'branding.local.properties')
+if (localBranding.exists()) localBranding.withInputStream { branding.load(it) }
 def generatedRes = layout.buildDirectory.dir('generated/branding-res')
 def copyBranding = tasks.register('copyBranding', Copy) {
     from(new File(brandingDir, 'logo.png')) { rename { 'brand_logo.png' } }
@@ -20,9 +23,10 @@ android {
     compileSdk 35
     buildToolsVersion '35.0.0'
     sourceSets { main { res.srcDirs += generatedRes.get().asFile } }
-    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 19; versionName '1.18.0'
+    defaultConfig { applicationId 'org.pickleballpools.app'; minSdk 26; targetSdk 35; versionCode 20; versionName '1.19.0'
         resValue 'string', 'app_name', branding.getProperty('appName', 'Pickleball Pools')
-        resValue 'color', 'icon_background', branding.getProperty('iconBackground', '#FFFFFF') }
+        resValue 'color', 'icon_background', branding.getProperty('iconBackground', '#FFFFFF')
+        resValue 'string', 'default_server', branding.getProperty('serverUrl', '') }
     signingConfigs { release { if (keystoreFile.exists()) {
         storeFile file(keystoreProps['storeFile']); storePassword keystoreProps['storePassword']
         keyAlias keystoreProps['keyAlias']; keyPassword keystoreProps['keyPassword'] } } }

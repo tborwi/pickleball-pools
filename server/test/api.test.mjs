@@ -140,6 +140,17 @@ check(sc1 && sc1.detail.old.length === 2 && sc1.email === "dir@example.com", "au
 check((await call("GET", `/tournaments/${tid}/audit`, cap)).status === 403, "captains can't read the audit log");
 check((await call("GET", "/admin/audit", admin)).data.entries.some(e => e.action === "role"), "admin sees role changes in the audit log");
 
+// Club settings and rosters
+check((await call("PUT", "/club", dir, { club: { name: "X" } })).status === 403, "only admins change club settings");
+let club = await call("PUT", "/club", admin, { club: { name: "Heart of Wisconsin PA", pointsToWin: "11", winBy: "2", paymentLink: "https://pay.example/x" } });
+check(club.data.club.name === "Heart of Wisconsin PA" && club.data.club.winBy === "2", "admin saves club settings");
+check((await call("PUT", "/club", admin, { club: { winBy: "two" } })).status === 400 && (await call("PUT", "/club", admin, { club: { secret: "x" } })).status === 400, "bad or unknown settings refused");
+check((await call("GET", "/club", cap)).data.club.paymentLink === "https://pay.example/x", "staff read club settings");
+check((await call("PUT", "/rosters/practice", dir, { players: ["A"] })).status === 403, "only admins save rosters");
+await call("PUT", "/rosters/practice", admin, { players: ["Pat Lee", "Sam Ray *", " ", "Kim Fox"] });
+const rs = await call("GET", "/rosters/practice", dir);
+check(rs.data.players.length === 3 && rs.data.players[1] === "Sam Ray *", "director loads the practice roster");
+
 const cash = await emailSignIn("cash@example.com");
 check((await call("GET", `/tournaments/${tid}/live`, cash)).status === 403, "treasurer isn't staff of this tournament (no live scores)");
 me = await call("GET", "/me", cash);
