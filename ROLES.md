@@ -26,8 +26,9 @@ Accounts are **optional**. Without a server the app works fully on one phone, as
   with their initials. Photos are shrunk to about 1600 px and stored in the server's photo storage (Cloudflare R2).
   Without signal they wait on the phone and send later.
 - **Who sees a photo:** the tournament's directors and admins, the captain of that court, and the four players in that
-  match. Players are linked to their teams by the **email or DUPR ID** they registered with (and set under My details),
-  so teams typed in by hand, without registrations, can't see their photos.
+  match. Players are linked to their teams by **DUPR ID** (or the email they registered with): teams from
+  registrations have both players' DUPR IDs; for teams typed in by hand, enter each player's DUPR ID on the team form.
+  Each player also puts their DUPR ID under **My details** after signing in.
 
 ## Live scoring
 

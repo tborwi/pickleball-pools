@@ -119,14 +119,12 @@ final class Live {
     /** DUPR IDs (from registrations) and emails of a team's players, so players can find their own matches. */
     JSONObject identities(Team x) throws org.json.JSONException {
         JSONArray dupr = new JSONArray(), email = new JSONArray();
-        if (x.regKey != null && !x.regKey.isEmpty())
-            for (String id : x.regKey.split("\\+")) {
-                if (id.isEmpty()) continue;
-                dupr.put(id);
-                for (org.pickleballpools.core.Player pl : a.t.players)
-                    if (org.pickleballpools.core.Player.normId(pl.duprId).equals(org.pickleballpools.core.Player.normId(id))
-                            && pl.email != null && !pl.email.isBlank()) email.put(pl.email.trim().toLowerCase(java.util.Locale.ROOT));
-            }
+        for (String id : x.duprIds()) {
+            dupr.put(id);
+            for (org.pickleballpools.core.Player pl : a.t.players)
+                if (org.pickleballpools.core.Player.normId(pl.duprId).equals(id)
+                        && pl.email != null && !pl.email.isBlank()) email.put(pl.email.trim().toLowerCase(java.util.Locale.ROOT));
+        }
         return new JSONObject().put("dupr", dupr).put("email", email);
     }
 

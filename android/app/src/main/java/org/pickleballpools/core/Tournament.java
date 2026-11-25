@@ -83,6 +83,7 @@ public final class Tournament {
             x.regKey = key;
             x.player1 = pr[0].name; x.dupr1 = pr[0].rating;
             x.player2 = pr[1].name; x.dupr2 = pr[1].rating;
+            x.duprId1 = pr[0].duprId; x.duprId2 = pr[1].duprId;
             r.added++;
         }
         return r;

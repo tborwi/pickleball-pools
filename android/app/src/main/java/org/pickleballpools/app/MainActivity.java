@@ -304,8 +304,9 @@ public class MainActivity extends Activity {
         List<Team> s = t.seeded();
         for (int i = 0; i < s.size(); i++) {
             Team x = s.get(i);
-            TextView row = text(String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f",
-                    i + 1, x.label(), x.combined(), x.player1, x.dupr1, x.player2, x.dupr2), 18, false, Color.BLACK);
+            TextView row = text(String.format(Locale.US, "%d.  %s   %.2f\n     %s %.2f  +  %s %.2f%s",
+                    i + 1, x.label(), x.combined(), x.player1, x.dupr1, x.player2, x.dupr2,
+                    x.duprIds().size() == 2 ? "" : "\n     (no DUPR ID" + (x.duprIds().isEmpty() ? "s" : " for one player") + ")"), 18, false, Color.BLACK);
             card(row);
             row.setOnClickListener(v -> editTeam(x));
         }
@@ -322,9 +323,14 @@ public class MainActivity extends Activity {
     void editTeam(Team existing) {
         LinearLayout f = form();
         EditText p1 = field(f, "Player 1 name", existing == null ? "" : existing.player1, false);
-        EditText d1 = field(f, "Player 1 DUPR (e.g. 5.56)", existing == null ? "" : num(existing.dupr1), true);
-        EditText p2 = field(f, "Player 2 name", existing == null ? "" : existing.player2, false);
-        EditText d2 = field(f, "Player 2 DUPR (e.g. 5.51)", existing == null ? "" : num(existing.dupr2), true);
+        EditText d1 = field(f, "Player 1 DUPR rating (e.g. 5.56)", existing == null ? "" : num(existing.dupr1), true);
+        EditText i1 = field(f, "Player 1 DUPR ID (optional, e.g. L8EW8W)", existing == null ? "" : existing.duprId1, false);
+        EditText p2 = field(f, "Player 2 (partner) name", existing == null ? "" : existing.player2, false);
+        EditText d2 = field(f, "Player 2 DUPR rating (e.g. 5.51)", existing == null ? "" : num(existing.dupr2), true);
+        EditText i2 = field(f, "Player 2 DUPR ID (optional)", existing == null ? "" : existing.duprId2, false);
+        for (EditText e : new EditText[]{i1, i2})
+            e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        f.addView(free(text("DUPR IDs let players sign in and see their own matches and score sheet photos.", 14, false, GREY)));
         EditText n = field(f, "Team name (optional)", existing == null ? "" : existing.name, false);
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(existing == null ? "Add a team" : "Change team")
@@ -345,12 +351,21 @@ public class MainActivity extends Activity {
             Double a = parse(d1), c = parse(d2);
             if (p1.getText().toString().isBlank() || p2.getText().toString().isBlank()) { toast("Enter both player names"); return; }
             if (a == null || c == null) { toast("Enter both DUPRs as numbers, like 5.56"); return; }
+            String id1 = org.pickleballpools.core.Player.normId(i1.getText().toString()), id2 = org.pickleballpools.core.Player.normId(i2.getText().toString());
+            for (String id : new String[]{id1, id2})
+                if (!id.isEmpty() && !id.matches("[A-Z0-9]{4,12}")) { toast("A DUPR ID is letters and numbers only, like L8EW8W"); return; }
+            if (!id1.isEmpty() && id1.equals(id2)) { toast("The two players can't have the same DUPR ID"); return; }
+            for (Team o : t.teams)
+                if (o != existing && !o.withdrawn) for (String id : new String[]{id1, id2})
+                    if (!id.isEmpty() && o.duprIds().contains(id)) { toast("DUPR ID " + id + " is already on " + o.label()); return; }
             Team x = existing == null ? t.addTeam() : existing;
             x.player1 = p1.getText().toString().trim();
             x.player2 = p2.getText().toString().trim();
             x.dupr1 = a;
             x.dupr2 = c;
             x.name = n.getText().toString().trim();
+            x.duprId1 = id1;
+            x.duprId2 = id2;
             save();
             d.dismiss();
             refresh();

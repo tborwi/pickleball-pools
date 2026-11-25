@@ -192,6 +192,10 @@ public final class CoreTest {
         p.ready.get(0)[0].rating = 5.56; p.ready.get(0)[1].rating = 5.51;
         check(t.addReadyTeams().added == 1 && t.teams.get(0).combined() == 11.07, "ready pair -> team, combined 11.07");
         check(t.addReadyTeams().added == 0, "team only added once");
+        check(t.teams.get(0).duprIds().size() == 2, "team from registrations keeps both DUPR IDs");
+        Team h = new Team("h");
+        h.duprId1 = " l8ew-8w ";
+        check(h.duprIds().size() == 1 && h.duprIds().get(0).equals("L8EW8W"), "hand-entered DUPR ID cleaned up; partner's optional");
     }
 
     public static void main(String[] args) {
