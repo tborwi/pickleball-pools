@@ -135,7 +135,10 @@ async function sendCode(env, email, code) {
       text: `Your ${org} sign-in code is ${code}\n\nIt works for 10 minutes. If you didn't ask for it, ignore this email.`,
     }),
   });
-  if (!r.ok) throw new Http(502, "Couldn't send the email. Try again.");
+  if (!r.ok) {
+    console.error("Resend refused the email:", r.status, (await r.text()).slice(0, 300)); // visible in `wrangler tail`
+    throw new Http(502, "Couldn't send the email. Try again.");
+  }
 }
 
 // ------------------------------------------------------------------ sign-in with Google (OAuth code flow + PKCE)
@@ -204,7 +207,8 @@ async function signIn(env, { email, name = "", googleSub = null }) {
     await env.DB.prepare("INSERT INTO users (id, email, name, google_sub, created, last_login) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(u.id, email, name, googleSub, now, now).run();
     const admins = await env.DB.prepare("SELECT COUNT(*) AS n FROM roles WHERE role = 'admin'").first();
-    const first = env.ADMIN_EMAIL ? cleanEmail(env.ADMIN_EMAIL) === email : true;
+    // ADMIN_EMAIL may list several addresses, comma-separated (e.g. the same person's two accounts)
+    const first = env.ADMIN_EMAIL ? env.ADMIN_EMAIL.split(",").map(x => x.trim().toLowerCase()).includes(email) : true;
     if (admins.n === 0 && first)
       await env.DB.prepare("INSERT OR IGNORE INTO roles (email, role, granted_by, created) VALUES (?, 'admin', 'first sign-in', ?)")
         .bind(email, now).run();

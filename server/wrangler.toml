@@ -13,7 +13,7 @@ database_id = "replace-with-your-d1-database-id"
 APP_REDIRECT = "pickleballpools://signin"
 # Name shown in sign-in emails.
 ORG_NAME = "Pickleball Pools"
-# The first admin (recommended). Without it, the first person to sign in becomes admin.
+# The first admin (recommended; comma-separate several). Without it, the first person to sign in becomes admin.
 ADMIN_EMAIL = ""
 # Set with `wrangler secret put`: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, RESEND_API_KEY, MAIL_FROM
 
